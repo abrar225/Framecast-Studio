@@ -1,0 +1,21 @@
+.build/
+build/
+.DS_Store
+# Local investigation and user artifacts are never part of a public source export.
+research/
+*.vidyststudio
+*.mp4
+*.mov
+*.flv
+*.log
+# Generated icon assets are recreated by scripts/make-icon.swift.
+Resources/Framecast.iconset/
+# Local credentials and signing material.
+.env
+.env.*
+client_secret*.json
+credentials*.json
+*.p12
+*.pfx
+*.key
+*.pem
