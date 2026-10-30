@@ -4,7 +4,17 @@ A free, MIT-licensed native macOS studio for composing screen and camera scenes,
 
 ## Project website
 
-The public landing page is published at [abrar225.github.io/Framecast-Studio](https://abrar225.github.io/Framecast-Studio/). Its source lives in [`landing page/`](landing%20page/), with a no-build GitHub Pages workflow at [`.github/workflows/deploy-landing-page.yml`](.github/workflows/deploy-landing-page.yml). Update the feature-status section alongside this README when app capabilities change.
+The public landing page is published at [abrar225.github.io/Framecast-Studio](https://abrar225.github.io/Framecast-Studio/). Its React/Vite source lives in [`landing page/`](landing%20page/), and [GitHub Actions](.github/workflows/deploy-landing-page.yml) builds and publishes it with the pinned Node.js version. Update the feature-status section alongside this README when app capabilities change.
+
+## App screenshots and walkthrough
+
+These images are frames from the installed Framecast Studio 1.4.2 app, captured on macOS with Recordly on October 30, 2026. The screen-only walkthrough is 1 minute 33 seconds at 1440 × 810 and 30 fps. It shows both output canvases, the layout rail, live chat panel, and audio meters. In this captured session, the microphone meter detected signal and screen/app audio showed silence.
+
+![Framecast Studio with horizontal and vertical previews](landing%20page/public/media/framecast-studio.png)
+
+![Framecast Studio audio panel with input meters](landing%20page/public/media/framecast-audio.png)
+
+[Watch the complete Framecast Studio app tour](landing%20page/public/media/framecast-tour.mp4).
 
 ## Requirements and build
 

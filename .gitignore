@@ -7,6 +7,8 @@ landing page/dist/
 research/
 *.vidyststudio
 *.mp4
+# This generated promotional capture is intentionally published with the landing page.
+!landing page/public/media/framecast-tour.mp4
 *.mov
 *.flv
 *.log
