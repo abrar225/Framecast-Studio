@@ -2,6 +2,10 @@
 
 A free, MIT-licensed native macOS studio for composing screen and camera scenes, recording landscape and portrait video, and testing private YouTube broadcasts. This is an independent implementation, with no affiliation to Vidyst. It is an early release with known gaps; it is not a feature-complete replacement or a certified production streaming system.
 
+## Project website
+
+The public landing page is published at [abrar225.github.io/Framecast-Studio](https://abrar225.github.io/Framecast-Studio/). Its source lives in [`landing page/`](landing%20page/), with a no-build GitHub Pages workflow at [`.github/workflows/deploy-landing-page.yml`](.github/workflows/deploy-landing-page.yml). Update the feature-status section alongside this README when app capabilities change.
+
 ## Requirements and build
 
 - macOS 14.2 or later. Development and runtime checks have been performed on Apple Silicon; Intel and a broad macOS/device matrix are not yet verified.
