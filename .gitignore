@@ -1,5 +1,7 @@
 .build/
 build/
+node_modules/
+landing page/dist/
 .DS_Store
 # Local investigation and user artifacts are never part of a public source export.
 research/

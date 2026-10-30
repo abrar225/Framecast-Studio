@@ -27,12 +27,24 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'landing page/.nvmrc'
+          cache: npm
+          cache-dependency-path: 'landing page/package-lock.json'
+      - name: Install site dependencies
+        run: npm ci
+        working-directory: 'landing page'
+      - name: Build site
+        run: npm run build
+        working-directory: 'landing page'
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload landing page artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'landing page'
+          path: 'landing page/dist'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

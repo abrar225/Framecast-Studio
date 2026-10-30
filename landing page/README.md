@@ -1,11 +1,14 @@
 # Framecast Studio landing page
 
-This is a dependency-free static page. Edit `index.html`; no install or build step is needed. The page uses original CSS/SVG product illustrations and does not load third-party fonts, scripts, analytics, or image assets.
+This is the Framecast Studio marketing site, built with React and Vite. GSAP handles the short opening sequence and scroll reveals. A small original Lottie animation adds motion to the audio signal indicator. The illustrations are original; no external font, analytics, or image service is required.
 
-Push changes to `landing page/` on `main` to publish with the GitHub Pages workflow. The repository README links to the published page. Keep product claims aligned with the app's current [README](../README.md#known-limits), especially the distinction between implemented local/YouTube workflows and unfinished guest, multistream, and unified-chat features.
+Use the Node version in `.nvmrc`. The build output is `dist/`, including the project-page base path for GitHub Pages.
+
+Push changes to `landing page/` on `main` to build and publish with the GitHub Pages workflow. Keep product claims aligned with the app's current [README](../README.md#known-limits), especially the distinction between implemented local/YouTube workflows and unfinished guest, multistream, and unified-chat features. The screenshots and app tour in `public/media/` are captures of the installed app, not mockups.
 
 Preview locally with:
 
 ```sh
-python3 -m http.server 8000 --directory 'landing page'
+npm ci
+npm run dev
 ```
