@@ -1,6 +1,6 @@
 # Framecast Studio landing page
 
-This is the Framecast Studio marketing site, built with React and Vite. GSAP handles the short opening sequence and scroll reveals. A small original Lottie animation adds motion to the audio signal indicator. The illustrations are original; no external font, analytics, or image service is required.
+This is the Framecast Studio marketing site, built with React and Vite. GSAP handles the opening sequence, scroll choreography, and product-state transitions. The visual system and illustrations are original; no external font, analytics, or image service is required.
 
 Use the Node version in `.nvmrc`. The build output is `dist/`, including the project-page base path for GitHub Pages.
 

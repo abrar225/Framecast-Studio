@@ -7,206 +7,166 @@ import './styles.css';
 const BASE = import.meta.env.BASE_URL;
 const REPO = 'https://github.com/abrar225/Framecast-Studio';
 
-function Mark({ className = '' }) {
-  return <svg className={className} viewBox="0 0 34 34" fill="none" aria-hidden="true">
-    <rect x="2" y="2" width="30" height="30" rx="9" fill="currentColor" />
-    <path d="M9 11h16v11H9zM13 26h8m-4-4v4m-4-11h6m-6 3h3" stroke="#141714" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="22" cy="17" r="1.8" fill="#141714" />
+function Mark() {
+  return <svg className="mark" viewBox="0 0 42 42" fill="none" aria-hidden="true">
+    <rect x="1" y="1" width="40" height="40" rx="11" fill="currentColor" />
+    <path d="M10.5 13.5h21v14h-21zM16 32h10m-5-4.5V32m-4.5-12h7m-7 3.5h3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="28.2" cy="20.5" r="2.2" fill="#101113" />
   </svg>;
 }
 
 function Arrow({ diagonal = false }) {
-  return <svg className="arrow-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-    {diagonal ? <path d="M5 15 15 5M6 5h9v9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /> : <path d="M3 10h13m-5-5 5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />}
+  return <svg className="arrow" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    {diagonal ? <path d="M4 14 14 4M5 4h9v9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /> : <path d="M2 9h13m-5-5 5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />}
   </svg>;
 }
 
 function Header() {
   const [open, setOpen] = useState(false);
-  return <header className="site-header">
-    <a className="brand" href="#top" aria-label="Framecast Studio home"><Mark /><span>Framecast<span className="brand-studio">Studio</span></span></a>
-    <button className="menu-button" aria-expanded={open} aria-label={open ? 'Close menu' : 'Open menu'} onClick={() => setOpen(!open)}><i /><i /></button>
-    <nav className={open ? 'nav-links open' : 'nav-links'} aria-label="Main navigation">
-      <a href="#studio" onClick={() => setOpen(false)}>The studio</a>
-      <a href="#details" onClick={() => setOpen(false)}>What it does</a>
-      <a href="#roadmap" onClick={() => setOpen(false)}>Project status</a>
-      <a className="nav-github" href={REPO} target="_blank" rel="noreferrer">Source <Arrow diagonal /></a>
+  const close = () => setOpen(false);
+  return <header className="nav-shell">
+    <a className="wordmark" href="#top" aria-label="Framecast Studio home"><Mark /><span>Framecast</span><small>Studio</small></a>
+    <button className="menu-toggle" aria-expanded={open} aria-controls="site-menu" onClick={() => setOpen(!open)}><span>{open ? 'Close' : 'Menu'}</span><i /><i /></button>
+    <nav className={open ? 'site-nav site-nav--open' : 'site-nav'} id="site-menu" aria-label="Main navigation">
+      <a href="#ways" onClick={close}>Ways to use it</a>
+      <a href="#watch" onClick={close}>Watch it work</a>
+      <a href="#release" onClick={close}>Release notes</a>
+      <a className="source-link" href={REPO} target="_blank" rel="noreferrer">Source <Arrow diagonal /></a>
     </nav>
   </header>;
 }
 
-function LottieSignal() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let disposed = false;
-    let animation;
-    import('lottie-web/build/player/lottie_svg.js').then(({ default: lottie }) => {
-      if (disposed) return;
-      animation = lottie.loadAnimation({
-        container: ref.current,
-        renderer: 'svg',
-        loop: !reduced,
-        autoplay: !reduced,
-        path: `${BASE}media/signal.json`,
-        rendererSettings: { preserveAspectRatio: 'xMidYMid meet' },
-      });
-    });
-    return () => { disposed = true; animation?.destroy(); };
-  }, []);
-  return <div className="signal-lottie" ref={ref} aria-hidden="true" />;
+function FormatSwitch({ value, onChange }) {
+  const choices = [['wide', 'Wide', '16:9'], ['tall', 'Tall', '9:16'], ['both', 'Both', 'linked']];
+  return <div className="format-switch" role="group" aria-label="Preview output format">
+    {choices.map(([id, label, detail]) => <button key={id} onClick={() => onChange(id)} aria-pressed={id === value}><span>{label}</span><small>{detail}</small></button>)}
+  </div>;
 }
 
 function Hero({ onWatch }) {
-  const [mode, setMode] = useState('both');
-  const [playing, setPlaying] = useState(false);
-  return <section className="hero" id="top">
-    <div className="hero-backdrop" aria-hidden="true"><div className="hero-ring" /><div className="hero-gridline" /></div>
-    <div className="hero-content">
+  const [format, setFormat] = useState('both');
+  const board = useRef(null);
+  const moveBoard = (event) => {
+    if (!board.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const rect = board.current.getBoundingClientRect();
+    board.current.style.setProperty('--tilt-x', `${((event.clientX - rect.left) / rect.width - .5) * 4}deg`);
+    board.current.style.setProperty('--tilt-y', `${((event.clientY - rect.top) / rect.height - .5) * -4}deg`);
+  };
+  const resetBoard = () => {
+    board.current?.style.setProperty('--tilt-x', '0deg');
+    board.current?.style.setProperty('--tilt-y', '0deg');
+  };
+  const subtitle = format === 'wide' ? 'A 16:9 canvas for the full picture.' : format === 'tall' ? 'A 9:16 canvas that keeps the important bits close.' : 'One take, ready for wide and tall.';
+
+  return <section className="masthead" id="top">
+    <div className="masthead-grain" aria-hidden="true" />
+    <div className="hero-grid">
       <div className="hero-copy">
-        <p className="eyebrow hero-eyebrow"><span className="eyebrow-mark" /> Open source studio for Mac</p>
-        <h1 className="hero-title">A screen worth<br /><span>staying for.</span></h1>
-        <p className="hero-description">Framecast gives your screen, camera, and ideas a place to land. Set the scene, check the sound, and make the take.</p>
+        <p className="kicker">Open source recording studio for Mac</p>
+        <h1><span>Make the</span><span className="hero-outline">work visible.</span></h1>
+        <p className="hero-summary">A native Mac studio for turning a screen, a camera, and a thought in progress into a clear recording.</p>
         <div className="hero-actions">
-          <a className="button button-lime" href={`${REPO}#requirements-and-build`} target="_blank" rel="noreferrer">Build from source <Arrow /></a>
-          <button className="button button-watch" onClick={onWatch}><span className="play-triangle" /> Watch the studio</button>
+          <a className="button button-dark" href={`${REPO}#requirements-and-build`} target="_blank" rel="noreferrer">Build Framecast <Arrow /></a>
+          <button className="text-button" onClick={onWatch}><span className="play-dot">▶</span> Watch the app tour</button>
         </div>
-        <p className="hero-footnote"><span>MIT licensed</span><b>·</b><span>macOS 14.2+</span><b>·</b><span>Early release</span></p>
+        <p className="hero-facts"><span>MIT licensed</span><span>macOS 14.2+</span><span>Local first</span></p>
       </div>
 
-      <div className="hero-stage" id="studio">
-        <div className="stage-caption"><span>Framecast Studio 1.4.2</span><span className="stage-preview">Product preview</span></div>
-        <div className={`stage-window mode-${mode}`}>
-          <div className="stage-window-top"><span className="window-lights"><i /><i /><i /></span><span>Screen + camera</span><span className="stage-time">00:18:24</span></div>
-          <div className="stage-workspace">
-            <div className="stage-editor">
-              <div className="stage-toolbar"><span>Preview</span><div className="stage-format" role="group" aria-label="Preview format">
-                {['wide', 'tall', 'both'].map((value) => <button key={value} onClick={() => { setMode(value); setPlaying(true); }} aria-pressed={mode === value}>{value === 'wide' ? 'Wide' : value === 'tall' ? 'Tall' : 'Both'}</button>)}
-              </div></div>
-              <div className="stage-canvases">
-                <div className="preview-canvas wide-canvas"><div className="preview-browser"><div className="browser-bar"><i /><i /><i /><span>framecast-studio.app</span></div><div className="browser-art"><div className="browser-copy"><small>STUDIO NOTES / 04</small><b>Give your<br />work a frame.</b><span>Screen, camera, sound.<br />All in the same take.</span></div><div className="browser-shape" /><div className="browser-lines"><i /><i /><i /></div></div></div><div className="mini-camera"><span /><b>CAMERA</b></div><label>HORIZONTAL · 16:9</label></div>
-                <div className="preview-canvas tall-canvas"><div className="vertical-art"><small>FRAMECAST / 01</small><b>Look<br />closer.</b><div className="portrait-scene"><i /><span /></div><label>VERTICAL · 9:16</label></div></div>
-              </div>
-              <div className="stage-layouts"><span className="layout-swatch active"><i /><b>Screen + cam</b></span><span className="layout-swatch"><i /><b>Just me</b></span><span className="layout-swatch"><i /><b>Side by side</b></span><span className="layout-swatch"><i /><b>Screen focus</b></span></div>
-            </div>
-            <aside className="stage-tools"><div className="tool-title">Studio tools</div><div className="tool-active"><span>●</span> Screen capture <b>Ready</b></div><div className="tool-line"><span className="camera-symbol">◉</span><div><b>Camera</b><small>Frame your shot</small></div><i className="toggle-on" /></div><div className="tool-line"><LottieSignal /><div><b>Microphone</b><small>Signal detected</small></div></div><div className="tool-chat"><span>Live chat</span><b>Local overlay</b><small>Keep the useful bits<br />in view.</small></div><div className="tool-status"><i /> Recording locally</div></aside>
-          </div>
-          <div className="stage-bottom"><span>ScreenCaptureKit</span><span>1920 × 1080</span><span>H.264 · 30 fps</span></div>
+      <div className="hero-board" ref={board} onMouseMove={moveBoard} onMouseLeave={resetBoard}>
+        <div className="board-topline"><span>Recording desk</span><span className="board-live"><i /> Ready</span></div>
+        <div className={`capture-board capture-board--${format}`}>
+          <div className="capture-tabs"><span>Framecast Studio</span><span>Preview</span><strong>00:18:24</strong></div>
+          <img src={`${BASE}media/framecast-studio.png`} alt="Framecast Studio showing horizontal and vertical recording canvases" />
+          <div className="capture-stamp"><b>{format === 'wide' ? '16:9' : format === 'tall' ? '9:16' : '16:9 + 9:16'}</b><span>{subtitle}</span></div>
+          <div className="capture-pointer" aria-hidden="true"><i /><span /></div>
         </div>
-        <div className="stage-note"><span>Drag the format selector</span><span>Native Mac capture</span></div>
-        <div className={`stage-spark ${playing ? 'spark-active' : ''}`} aria-hidden="true"><i /><i /><i /><i /><i /></div>
+        <FormatSwitch value={format} onChange={setFormat} />
+        <p className="board-caption">Choose a frame. Shift the source. Keep working.</p>
       </div>
     </div>
-    <div className="hero-bottom"><span>Screen recording, composed.</span><a href="#details">Explore the studio <Arrow /></a><span>01 / 04</span></div>
+    <div className="masthead-strip" aria-label="Framecast capabilities"><span>Screen capture</span><span>Scene composition</span><span>Wide + tall outputs</span><span>Local recording</span></div>
   </section>;
 }
 
-function Intro() {
-  return <section className="intro section-wrap reveal" id="details">
-    <div className="intro-label"><span className="section-index">01</span><span>One app, considered from the first frame</span></div>
-    <div className="intro-copy"><h2>Make a clear take<br />of what you <em>do.</em></h2><p>Record a tutorial. Walk through a new idea. Share your workflow while your camera keeps you in the room. Framecast brings the pieces together on your Mac.</p></div>
+function Statement() {
+  return <section className="statement reveal" id="ways">
+    <div className="statement-index">01 / A working frame</div>
+    <div className="statement-copy"><p>Great screen recordings do not hide the work. They give it enough room to be understood.</p><h2>Keep the detail.<br />Lose the <em>clutter.</em></h2></div>
+    <div className="statement-note">Framecast puts the screen, the camera, and the sound check on one calm canvas before you press record.</div>
   </section>;
 }
 
-function Workbench() {
-  return <section className="workbench section-wrap reveal">
-    <div className="workbench-top"><div><p className="eyebrow">The canvas is yours</p><h2>Compose once.<br /><span>Find the frame.</span></h2></div><p className="workbench-blurb">Start with a layout. Move the screen, shift the camera, or bring the desktop forward. The preview keeps both formats visible while you work.</p></div>
-    <div className="workbench-visual">
-      <div className="workbench-rail"><span>LAYOUTS</span><div className="rail-items"><i className="rail-active"><b /></i><i><b /></i><i><b /></i><i><b /></i><i><b /></i></div><span className="rail-link">Add a layout <Arrow diagonal /></span></div>
-      <div className="workbench-preview"><div className="wb-toolbar"><span>Horizontal <small>16:9</small></span><span>Vertical <small>9:16</small></span><b>LINKED</b></div><div className="wb-canvases"><div className="wb-landscape"><div className="wb-desktop"><div className="wb-code"><i /><i /><i /><i /><i /><i /></div></div><div className="wb-face" /></div><div className="wb-portrait"><div className="wb-desktop"><div className="wb-code"><i /><i /><i /><i /></div></div><div className="wb-face" /></div></div><div className="wb-bottom"><span>Screen + camera</span><span>Move · Resize · Fit · Lock</span><span>Undo / Redo</span></div></div>
-      <div className="workbench-side"><p>EDIT SCENE</p><strong>Screen source</strong><span>Size · Fit · Position</span><div className="side-slider"><i /></div><span>Keep aspect ratio <b>ON</b></span><hr /><strong>Camera frame</strong><span>Shape · Crop · Position</span><div className="shape-set"><i /><i /><i /></div><div className="side-buttons"><b>Center</b><b>Lock</b></div></div>
-    </div>
-    <div className="workbench-meta"><span><strong>9</strong> built-in scenes</span><span><strong>2</strong> independent canvases</span><span>Editable down to the pixel</span></div>
-  </section>;
-}
-
-function UseCases() {
-  const cases = [
-    { id: 'A', title: 'Teach the workflow', body: 'Keep the important controls legible while you explain what happens on screen.', tone: 'case-citron' },
-    { id: 'B', title: 'Make a product walk-through', body: 'Frame a feature, add context, and let the details carry the story.', tone: 'case-lilac' },
-    { id: 'C', title: 'Bring your voice along', body: 'Check the microphone and app audio before you save the take.', tone: 'case-peach' },
+function SceneBoard() {
+  const [active, setActive] = useState(0);
+  const scenes = [
+    ['Screen first', 'Let the desktop lead. Your camera stays present without covering the part people came to see.', 'screen-first'],
+    ['A little context', 'Put the camera where it helps, then resize or reposition it while the preview stays in sight.', 'context-first'],
+    ['Two destinations', 'Check wide and tall in the same room before you make the take.', 'output-first'],
   ];
-  return <section className="use-cases section-wrap reveal">
-    <div className="use-heading"><p className="eyebrow">Good for the work in front of you</p><h2>Make the screen<br /><span>easy to follow.</span></h2></div>
-    <div className="case-list">{cases.map((item) => <article className={`case-row ${item.tone}`} key={item.id}><span className="case-id">{item.id}</span><div><h3>{item.title}</h3><p>{item.body}</p></div><div className="case-art"><span className="case-frame"><i /><i /><i /></span><span className="case-face" /></div><Arrow diagonal /></article>)}</div>
+  return <section className="scene-section reveal">
+    <div className="section-heading"><div><span className="eyebrow">Shape the scene</span><h2>Nothing useful<br />should be <em>lost</em><br />in the crop.</h2></div><p>Start from one of the built-in layouts, then make it yours. Frames, source position and canvas choices stay editable.</p></div>
+    <div className={`scene-machine scene-machine--${scenes[active][2]}`}>
+      <div className="scene-menu">{scenes.map(([title, description], index) => <button key={title} className={active === index ? 'scene-choice active' : 'scene-choice'} onClick={() => setActive(index)} aria-pressed={active === index}><span>0{index + 1}</span><b>{title}</b><small>{description}</small></button>)}</div>
+      <div className="scene-preview"><div className="scene-preview-head"><span>Layout preview</span><span>Editable scene</span></div><img src={`${BASE}media/framecast-studio.png`} alt="Framecast Studio layouts rail and dual canvas preview" /><div className="scene-window scene-window--wide" /><div className="scene-window scene-window--tall" /><div className="scene-cam" /><div className="scene-controls"><span>Drag</span><span>Resize</span><span>Fit</span><span>Lock</span></div></div>
+    </div>
   </section>;
 }
 
-function VideoProof({ onWatch }) {
-  return <section className="proof-section section-wrap reveal" id="proof">
-    <div className="proof-head"><div><p className="eyebrow">A real session</p><h2>See the studio<br />at work.</h2></div><p>Captured from the installed Mac app. See the canvas, layout rail, audio status, and recording controls in a real session.</p></div>
-    <button className="proof-video" onClick={onWatch} aria-label="Play the Framecast Studio recording">
-      <img src={`${BASE}media/framecast-audio.png`} alt="Framecast Studio showing horizontal and vertical previews with audio meters" loading="lazy" />
-      <span className="proof-overlay"><i className="proof-play">▶</i><span>Play the app tour <b>01:34</b></span></span>
-      <span className="proof-label">FRAMECAST STUDIO / RECORDED ON MAC</span>
-    </button>
-    <div className="proof-caption"><span>Actual app footage via Recordly</span><span>App version 1.4.2</span></div>
+function PullQuote() { return <section className="pullquote reveal"><p>“The point is not to make the screen look busy. It is to make it easy to follow.”</p><span>Framecast Studio principles</span></section>; }
+
+function Tour({ onWatch }) {
+  return <section className="tour-section" id="watch">
+    <div className="tour-copy reveal"><span className="eyebrow">A real session</span><h2>See the room<br />before you<br />step into it.</h2><p>This is the installed app, captured during a working screen-share session. It shows the canvas, layout rail, capture state, chat area and audio controls as they are today.</p><button className="button button-light" onClick={onWatch}>Play the 1:34 tour <Arrow /></button></div>
+    <button className="tour-film reveal" onClick={onWatch} aria-label="Play the Framecast Studio app tour"><img src={`${BASE}media/framecast-audio.png`} alt="Framecast Studio audio panel showing a detected microphone signal" /><span className="film-play">▶</span><span className="film-meta">Framecast Studio 1.4.2 <b>Recorded on Mac</b></span></button>
   </section>;
 }
 
-function Honesty() {
-  return <section className="roadmap-section section-wrap reveal" id="roadmap">
-    <div className="roadmap-head"><p className="eyebrow">Current release</p><h2>What works today.<br />What we’re still building.</h2><p>Framecast is early software. We’ll keep the feature list plain so you know what to expect before installing it.</p></div>
-    <div className="roadmap-grid"><article><span className="status-dot live" /> <h3>In the app</h3><ul><li>Screen and camera scene layouts</li><li>Landscape and portrait local recordings</li><li>H.264 or HEVC, with per-canvas settings</li><li>Microphone and app-audio meters</li><li>Private YouTube broadcast flow</li></ul></article><article><span className="status-dot next" /> <h3>Still underway</h3><ul><li>Guest rooms and backstage calls</li><li>Twitch, Kick, and more destinations</li><li>Unified multi-platform chat</li><li>Notarized installer and wider device testing</li></ul></article></div>
-  </section>;
+function CapabilityStrip() {
+  const points = [['Capture', 'Pick a display, window or app with macOS’s native source chooser.'], ['Compose', 'Use a built-in scene, then move, fit, resize or lock the pieces.'], ['Record', 'Create landscape and portrait recordings with their own output settings.'], ['Check', 'See microphone and screen-audio status before you commit to a take.']];
+  return <section className="capability-section reveal"><div className="capability-top"><span className="eyebrow">The recording room</span><p>Framecast is designed for people who need to explain, teach, demonstrate, and document work while it is still moving.</p></div><div className="capability-grid">{points.map(([title, text], index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{text}</p><i /></article>)}</div></section>;
 }
 
-const faq = [
-  ['Is Framecast free?', 'The project is open source under the MIT license. There is no paid plan or published installer in the repository yet. You can build the app from source using the project guide.'],
-  ['Which Mac does it support?', 'The app targets macOS 14.2 and later. Apple Silicon has been used for development and runtime checks; Intel and the wider device matrix have not been verified.'],
-  ['Can I stream to YouTube?', 'The current connected-account workflow supports private YouTube broadcasts. Public broadcasts, multi-destination streaming, Twitch and Kick integrations are not implemented.'],
-  ['Where are recordings saved?', 'Local recordings are saved on your Mac. The app uses Apple’s AVFoundation and VideoToolbox media frameworks for recording and hardware encoding. Check the README for current limits and configuration details.'],
+function Release() {
+  return <section className="release-section reveal" id="release"><div className="release-heading"><span className="eyebrow">Current release</span><h2>Clear about what<br />is here today.</h2><p>Framecast is early software. Its project page separates working tools from the work still underway, so the release does not pretend to be broader than it is.</p></div><div className="release-grid"><article className="release-now"><span className="release-dot" /><h3>Ready to explore</h3><ul><li>Screen and camera scene layouts</li><li>Landscape and portrait local recordings</li><li>H.264 or HEVC output choices</li><li>Microphone and app audio meters</li><li>Private YouTube broadcast workflow</li></ul></article><article className="release-next"><span className="release-dot" /><h3>Still in progress</h3><ul><li>Guest rooms and backstage calls</li><li>Twitch, Kick and more destinations</li><li>Unified multi-platform chat</li><li>Notarized distribution and wider testing</li></ul></article></div></section>;
+}
+
+const faqs = [
+  ['Is Framecast free?', 'Yes. The project is available under the MIT license. The repository has build instructions, while a notarized public installer is still on the roadmap.'],
+  ['Which Macs are supported?', 'The project targets macOS 14.2 and later. Development and runtime checks have been performed on Apple Silicon. Intel and a wider device matrix still need verification.'],
+  ['Can I stream to YouTube?', 'The current account workflow supports private YouTube broadcasts. Public broadcasts, multistreaming, Twitch and Kick are not implemented.'],
+  ['Where do recordings go?', 'Recordings stay local to your Mac. The app uses Apple media frameworks for capture and hardware encoding. The repository documents current paths and configuration limits.'],
 ];
 
 function FAQ() {
   const [active, setActive] = useState(0);
-  return <section className="faq-section section-wrap reveal" id="faq"><div className="faq-side"><p className="eyebrow">A few useful details</p><h2>Before you<br />press record.</h2></div><div className="faq-list">{faq.map(([q, a], i) => <article className={active === i ? 'faq-item expanded' : 'faq-item'} key={q}><button aria-expanded={active === i} onClick={() => setActive(active === i ? -1 : i)}><span>{q}</span><i>{active === i ? '−' : '+'}</i></button><div className="faq-answer" hidden={active !== i}>{a}</div></article>)}</div></section>;
+  return <section className="faq-section reveal"><div className="faq-title"><span className="eyebrow">Useful to know</span><h2>Before the<br />first take.</h2></div><div className="faq-list">{faqs.map(([question, answer], index) => <article key={question}><button onClick={() => setActive(active === index ? -1 : index)} aria-expanded={active === index}><span>{question}</span><i>{active === index ? '−' : '+'}</i></button>{active === index && <p>{answer}</p>}</article>)}</div></section>;
 }
 
 function Footer() {
-  return <footer className="site-footer"><div className="footer-main"><a className="brand" href="#top"><Mark /><span>Framecast<span className="brand-studio">Studio</span></span></a><p>Screen recording, composed.<br />Made in the open for Mac.</p><a className="footer-cta" href={REPO} target="_blank" rel="noreferrer">Read the source <Arrow diagonal /></a></div><div className="footer-bottom"><span>Independent open-source project · MIT License</span><div><a href={REPO} target="_blank" rel="noreferrer">GitHub</a><a href={`${REPO}/blob/main/CONTRIBUTING.md`} target="_blank" rel="noreferrer">Contribute</a><a href={`${REPO}/blob/main/README.md#known-limits`} target="_blank" rel="noreferrer">Known limits</a></div><span>© 2026 Framecast Studio contributors</span></div></footer>;
+  return <footer className="footer"><div className="footer-cta"><p>Work in public.<br /><em>Make the frame yours.</em></p><a className="button button-dark" href={REPO} target="_blank" rel="noreferrer">Read the source <Arrow diagonal /></a></div><div className="footer-bottom"><a className="wordmark" href="#top"><Mark /><span>Framecast</span><small>Studio</small></a><div><a href={REPO} target="_blank" rel="noreferrer">GitHub</a><a href={`${REPO}/blob/main/CONTRIBUTING.md`} target="_blank" rel="noreferrer">Contribute</a><a href={`${REPO}/blob/main/README.md#known-limits`} target="_blank" rel="noreferrer">Known limits</a></div><span>Independent project. MIT licensed.</span></div></footer>;
 }
 
 function VideoModal({ open, onClose }) {
-  const dialog = useRef(null);
-  useEffect(() => {
-    if (open && dialog.current && !dialog.current.open) {
-      dialog.current.showModal();
-      dialog.current.querySelector('video')?.play().catch(() => {});
-    } else if (!open && dialog.current?.open) {
-      dialog.current.querySelector('video')?.pause();
-      dialog.current.close();
-    }
-  }, [open]);
-  return <dialog className="video-dialog" ref={dialog} onClose={onClose} onClick={(event) => { if (event.target === dialog.current) onClose(); }}>
-    <div className="video-dialog-head"><span>Framecast Studio · App tour</span><button onClick={onClose} aria-label="Close video">×</button></div>
-    <video controls playsInline poster={`${BASE}media/framecast-audio.png`} src={`${BASE}media/framecast-tour.mp4`} />
-  </dialog>;
+  const ref = useRef(null);
+  useEffect(() => { const dialog = ref.current; if (open && dialog && !dialog.open) { dialog.showModal(); dialog.querySelector('video')?.play().catch(() => {}); } if (!open && dialog?.open) { dialog.querySelector('video')?.pause(); dialog.close(); } }, [open]);
+  return <dialog className="tour-modal" ref={ref} onClose={onClose} onClick={(event) => { if (event.target === ref.current) onClose(); }}><div><span>Framecast Studio app tour</span><button onClick={onClose} aria-label="Close video">×</button></div><video controls playsInline poster={`${BASE}media/framecast-audio.png`} src={`${BASE}media/framecast-tour.mp4`} /></dialog>;
 }
 
 function App() {
-  const [videoOpen, setVideoOpen] = useState(false);
+  const [watching, setWatching] = useState(false);
   useEffect(() => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) return undefined;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
     gsap.registerPlugin(ScrollTrigger);
-    const ctx = gsap.context(() => {
-      const intro = gsap.timeline({ defaults: { ease: 'power3.out' } });
-      intro.from('.hero-eyebrow', { y: 18, opacity: 0, duration: 0.55 })
-        .from('.hero-title', { y: 32, opacity: 0, duration: 0.78 }, '-=0.22')
-        .from('.hero-description, .hero-actions, .hero-footnote', { y: 18, opacity: 0, duration: 0.55, stagger: 0.1 }, '-=0.42')
-        .from('.hero-stage', { y: 24, opacity: 0, duration: 0.85 }, '-=0.5');
-      gsap.utils.toArray('.reveal').forEach((element) => gsap.fromTo(element, { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.72, ease: 'power2.out', scrollTrigger: { trigger: element, start: 'top 86%', once: true } }));
-      gsap.to('.hero-ring', { rotate: 360, duration: 56, ease: 'none', repeat: -1, transformOrigin: '50% 50%' });
-      gsap.to('.hero-stage', { y: -18, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 0.6 } });
+    const context = gsap.context(() => {
+      const timeline = gsap.timeline({ defaults: { ease: 'power4.out' } });
+      timeline.from('.nav-shell', { y: -20, opacity: 0, duration: .55 }).from('.hero-copy > *', { y: 28, opacity: 0, duration: .72, stagger: .09 }, '-=.22').from('.hero-board', { y: 52, rotate: 2, opacity: 0, duration: .95 }, '-=.65');
+      gsap.utils.toArray('.reveal').forEach((node) => gsap.from(node, { y: 40, opacity: 0, duration: .75, ease: 'power3.out', scrollTrigger: { trigger: node, start: 'top 82%', once: true } }));
+      gsap.to('.masthead-strip', { xPercent: -8, ease: 'none', scrollTrigger: { trigger: '.masthead', start: 'top top', end: 'bottom top', scrub: .5 } });
+      gsap.to('.hero-board', { y: -28, ease: 'none', scrollTrigger: { trigger: '.masthead', start: 'top top', end: 'bottom top', scrub: .6 } });
     });
-    return () => ctx.revert();
+    return () => context.revert();
   }, []);
-  return <>
-    <Header />
-    <main><Hero onWatch={() => setVideoOpen(true)} /><Intro /><Workbench /><UseCases /><VideoProof onWatch={() => setVideoOpen(true)} /><Honesty /><FAQ /></main>
-    <Footer /><VideoModal open={videoOpen} onClose={() => setVideoOpen(false)} />
-  </>;
+  return <><Header /><main><Hero onWatch={() => setWatching(true)} /><Statement /><SceneBoard /><PullQuote /><Tour onWatch={() => setWatching(true)} /><CapabilityStrip /><Release /><FAQ /></main><Footer /><VideoModal open={watching} onClose={() => setWatching(false)} /></>;
 }
 
 createRoot(document.getElementById('root')).render(<React.StrictMode><App /></React.StrictMode>);
