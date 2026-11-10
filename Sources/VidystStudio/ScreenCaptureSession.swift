@@ -5,11 +5,12 @@ import Combine
 enum CaptureSizing {
     /// Capture source pixels, rather than logical desktop points. Preserve portrait and ultrawide
     /// aspect ratios with the same 4K pixel budget as the compositor; never upscale small displays.
-    static func dimensions(contentSize: CGSize, pointPixelScale: Double) -> (width: Int, height: Int) {
+    /// `maxPixels` lets the engine bound capture to what its outputs can actually use.
+    static func dimensions(contentSize: CGSize, pointPixelScale: Double, maxPixels: Double = 8_294_400) -> (width: Int, height: Int) {
         let scale = pointPixelScale.isFinite && pointPixelScale > 0 ? pointPixelScale : 1
         let w = Double(contentSize.width) * scale, h = Double(contentSize.height) * scale
         guard w.isFinite, h.isFinite, w > 0, h > 0 else { return (2, 2) }
-        let reduction = min(1, 3840 / w, 3840 / h, sqrt(Double(3840 * 2160) / (w * h)))
+        let reduction = min(1, 3840 / w, 3840 / h, sqrt(max(1, maxPixels) / (w * h)))
         return (max(2, Int(w * reduction) / 2 * 2), max(2, Int(h * reduction) / 2 * 2))
     }
 
@@ -123,8 +124,9 @@ private final class NativeScreenInput {
     let filter: SCContentFilter
     let includesAudio: Bool
     let frameRate: Int
-    init(stream: SCStream, filter: SCContentFilter, includesAudio: Bool, frameRate: Int) {
-        self.stream = stream; self.filter = filter; self.includesAudio = includesAudio; self.frameRate = frameRate
+    let maxPixels: Double
+    init(stream: SCStream, filter: SCContentFilter, includesAudio: Bool, frameRate: Int, maxPixels: Double) {
+        self.stream = stream; self.filter = filter; self.includesAudio = includesAudio; self.frameRate = frameRate; self.maxPixels = maxPixels
     }
 }
 
@@ -144,10 +146,11 @@ private final class NativeScreenInput {
     private var enabled = false
     private var includeAudio = false
     private var frameRate = 30
+    private var pixelBudget = 8_294_400.0
     private var configurationChangePending = false
     private lazy var replacement = CaptureReplacement<SCContentFilter, NativeScreenInput>(make: { [weak self, receiver = self.receiver, queue = self.queue, audioQueue = self.audioQueue] filter in
         let settings = SCStreamConfiguration()
-        let size = CaptureSizing.dimensions(contentSize: filter.contentRect.size, pointPixelScale: Double(filter.pointPixelScale))
+        let size = CaptureSizing.dimensions(contentSize: filter.contentRect.size, pointPixelScale: Double(filter.pointPixelScale), maxPixels: self?.pixelBudget ?? 8_294_400)
         settings.width = size.width; settings.height = size.height
         settings.captureResolution = .best; settings.pixelFormat = kCVPixelFormatType_32BGRA
         settings.preservesAspectRatio = true; settings.ignoreShadowsSingleWindow = true
@@ -159,7 +162,7 @@ private final class NativeScreenInput {
         let stream = SCStream(filter: filter, configuration: settings, delegate: receiver)
         try stream.addStreamOutput(receiver, type: .screen, sampleHandlerQueue: queue)
         if settings.capturesAudio { try stream.addStreamOutput(receiver, type: .audio, sampleHandlerQueue: audioQueue) }
-        return NativeScreenInput(stream: stream, filter: filter, includesAudio: settings.capturesAudio, frameRate: self?.frameRate ?? 30)
+        return NativeScreenInput(stream: stream, filter: filter, includesAudio: settings.capturesAudio, frameRate: self?.frameRate ?? 30, maxPixels: self?.pixelBudget ?? 8_294_400)
     }, start: { try await $0.stream.startCapture() }, stop: { try await $0.stream.stopCapture() })
 
     override init() {
@@ -172,7 +175,7 @@ private final class NativeScreenInput {
             }
             if !self.replacement.working, self.configurationChangePending {
                 self.configurationChangePending = false
-                if let active = self.replacement.active, (active.includesAudio != self.includeAudio || active.frameRate != self.frameRate) { self.replacement.select(active.filter) }
+                if let active = self.replacement.active, (active.includesAudio != self.includeAudio || active.frameRate != self.frameRate || active.maxPixels != self.pixelBudget) { self.replacement.select(active.filter) }
             }
         }
         replacement.failed = { [weak self] in self?.failed($0) }
@@ -245,6 +248,15 @@ private final class NativeScreenInput {
         let value = min(60, max(1, value))
         guard frameRate != value else { return }
         frameRate = value
+        if replacement.working { configurationChangePending = true }
+        else if let active = replacement.active { replacement.select(active.filter) }
+    }
+    /// Bound captured pixels to the outputs actually in use; applied like the frame-rate change,
+    /// deferred while a replacement is in flight so an active stream is never disrupted.
+    func setPixelBudget(_ value: Double) {
+        let value = max(640.0 * 360.0, value)
+        guard pixelBudget != value else { return }
+        pixelBudget = value
         if replacement.working { configurationChangePending = true }
         else if let active = replacement.active { replacement.select(active.filter) }
     }
