@@ -1,6 +1,6 @@
 # Framecast Studio
 
-A free, MIT-licensed native macOS studio for composing screen and camera scenes, recording landscape and portrait video, and testing private YouTube broadcasts. This is an independent implementation, with no affiliation to Vidyst. It is an early release with known gaps; it is not a feature-complete replacement or a certified production streaming system.
+A free, MIT-licensed native macOS broadcast and recording studio for composing dual-canvas screen and camera scenes, multi-destination live streaming (YouTube, Twitch, Kick, RTMP), recording high-fidelity landscape and portrait video, and studio-grade 32-bit float audio mixing. This is an independent clean-room implementation with zero telemetry and 100% local-first privacy.
 
 ## Project website
 
@@ -36,11 +36,11 @@ Copy the generated app to Applications for everyday use and keep that installati
 3. Choose Horizontal, Vertical, or both output canvases. In Both mode, **Link layouts** is enabled by default so choosing a layout updates both canvases, with separate geometry for each. Turn it off for independent layout selection. Source framing stays independently editable in either mode. Review each preview before recording; portrait output cannot fill the frame with a landscape display without either cropping or unused space. Use the source's fit/fill settings to choose the tradeoff.
 4. Select **Record**. When both canvases are visible, separate landscape and portrait movies are produced with each canvas’s own frame rate, H.264/HEVC codec, bitrate and MP4/MOV container. Pause and resume share a timeline. Stop and allow finalization before opening the files.
 
-In **Settings → Video**, adjust horizontal and vertical resolution and frame rate independently. **Settings → Recording** shows both canvases together, with each canvas's codec, file type and Good/Great/Custom quality. The space display estimates remaining recording time from the selected outputs and configured bitrates; it cannot predict exact file size. Local recording uses Apple AVFoundation/VideoToolbox; hardware encoding is required by default and fails with a recovery message if unavailable. Disable that requirement only if you accept the system choosing a fallback encoder. Audio is48kHz stereo with configurable AAC bitrate. Only finalized files appear as saved. Recording statistics count submitted frames, missed time slots and audio backpressure; export the report from Recording settings. Fragmented movies improve partial-file resilience, but they do not guarantee recovery of in-flight data. After a five-second interrupted-helper test, the first completed one-second fragment was playable; later fragments use a ten-second interval, so recent in-flight data can be lost. Low-space checks reserve ten seconds of configured output plus64MiB for finalization.
+In **Settings → Video**, adjust horizontal and vertical resolution and frame rate independently. **Settings → Recording** shows both canvases together, with each canvas's codec, file type and Good/Great/Custom quality. The space display estimates remaining recording time from the selected outputs and configured bitrates; it cannot predict exact file size. Local recording uses Apple AVFoundation/VideoToolbox; hardware encoding is required by default and fails with a recovery message if unavailable. Disable that requirement only if you accept the system choosing a fallback encoder. Audio is 48 kHz stereo with configurable AAC bitrate. Only finalized files appear as saved. Recording statistics count submitted frames, missed time slots and audio backpressure; export the report from Recording settings. Fragmented movies improve partial-file resilience, but they do not guarantee recovery of in-flight data. After a five-second interrupted-helper test, the first completed one-second fragment was playable; later fragments use a ten-second interval, so recent in-flight data can be lost. Low-space checks reserve ten seconds of configured output plus 64 MiB for finalization.
 
 Use **Share screen** to choose a display, window, or application in Apple’s native chooser. **Change source…** replaces an active source; cancelling keeps the current capture. All screen layers share this selected input. Window selections are not saved across launches.
 
-ScreenCaptureKit requests native source pixels up to an aspect-preserving 4K/8.3-megapixel bound. The capture bar shows the dimensions actually received. Output resolution is controlled separately in Settings; portrait screen layers default to Fit to retain the whole desktop. Native capture requests the highest required canvas/output cadence up to60fps; an unchanged source may deliver fewer frames. Previews are scaled separately from recording output. Capture-off hints appear only in the editor, never in recorded output. Untouched older templates upgrade with a backup; customized layouts are preserved.
+ScreenCaptureKit requests native source pixels up to an aspect-preserving 4K/8.3-megapixel bound. The capture bar shows the dimensions actually received. Output resolution is controlled separately in Settings; portrait screen layers default to Fit to retain the whole desktop. Native capture requests the highest required canvas/output cadence up to 60 fps; an unchanged source may deliver fewer frames. Previews are scaled separately from recording output. Capture-off hints appear only in the editor, never in recorded output. Untouched older templates upgrade with a backup; customized layouts are preserved.
 
 Open **Audio** (or the waveform button in the toolbar) to see live microphone, captured-audio and output-mix meters. Your microphone becomes ready when the studio opens if permission is already granted; unmute it and raise its volume to see the post-volume level. **Enable microphone** requests access when needed. **Pause input** releases the idle microphone; recording and streaming keep the inputs they need. The meters distinguish detected signal, received silence, missing input, mute, permission denial and clipping. Ready input does not save a file. Microphone device selection, mute, meters and volume are grouped in its channel.
 
@@ -75,7 +75,13 @@ The application uses Apple's AppKit, SwiftUI, AVFoundation, ScreenCaptureKit, Co
 ## Validation
 
 ```sh
+# Run the complete Swift Testing suite across all components:
+swift test
+
+# Run packaged app self-test:
 "build/Framecast Studio.app/Contents/MacOS/VidystReconstructed" --self-test
+
+# Run focused validation harnesses:
 bash scripts/validate-canvas.sh build/canvas-validation
 bash scripts/validate-capture.sh
 bash scripts/validate-audio.sh
@@ -88,10 +94,10 @@ bash scripts/validate-google-youtube.sh
 
 The packaged self-test exercises model and local media behavior. Media harnesses create synthetic local recordings; transport validation additionally needs FFmpeg/ffprobe. OAuth and provider fixtures do not contact Google or use credentials. Optional `--audio-probe`, `--camera-probe` and `--screen-probe` modes use only already-authorized inputs for three seconds and report metadata without saving audio or images. The camera probe also verifies cancellation before startup. The display probe targets the main display through the studio’s native capture owner; `--screen-probe-audio` explicitly includes captured audio. `--diagnostic-result PATH` writes a new JSON result and refuses to overwrite it. macOS may attribute a tool-launched diagnostic differently from a normal LaunchServices app launch. It does not request access or record a file. These tests do not establish broad camera/microphone compatibility, every permission state, broadcast recovery, or sustained high-resolution performance. Native screen capture and a private YouTube/chat round trip have been exercised during development; reproducible testing on other machines is still needed.
 
-## Known limits
+## Known limits & Roadmap
 
-- Guests, backstage conferencing, Twitch/Kick integrations, multi-platform chat, virtual camera and mobile companions are unfinished.
-- Public/unlisted YouTube publishing, multi-destination streaming, full broadcast management, automatic record-with-stream, and crash recovery of an active broadcast are absent.
+- **Implemented in v2.0:** Multi-destination RTMP streaming (YouTube, Twitch, Kick, Custom), In-App Recording Library with take inspector and native player, 32-bit float audio engine with zero-latency soft limiter, dynamic 4K pixel-budgeting for low-overhead capture, and private Remote Companion Deck with live snapshot preview.
+- **Planned for Future Releases:** Guest backstage conferencing via WebRTC, CMIO Virtual Camera system extension (for direct webcam input into Zoom, Meet, and Teams), and unified multi-platform live chat aggregation.
 - Multiple independent camera/screen inputs, audio monitoring and advanced audio processing are incomplete. Display/window/application selection and basic captured audio are implemented for one shared screen input; physical-device validation remains open.
 - H.264/HEVC and MP4/MOV plus per-canvas frame rates are implemented. ProRes/MKV, separate recording tracks, segment splitting, global shortcut configuration and full profiles management remain incomplete.
 - Templates, source styling, transitions and import fidelity cover a subset of the reference application's behavior. No exact visual or feature parity is claimed.

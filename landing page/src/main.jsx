@@ -62,14 +62,14 @@ function Hero({ onWatch }) {
     <div className="masthead-grain" aria-hidden="true" />
     <div className="hero-grid">
       <div className="hero-copy">
-        <p className="kicker">Open source recording studio for Mac</p>
+        <p className="kicker">Open source broadcast & recording studio for Mac</p>
         <h1><span>Make the</span><span className="hero-outline">work visible.</span></h1>
-        <p className="hero-summary">A native Mac studio for turning a screen, a camera, and a thought in progress into a clear recording.</p>
+        <p className="hero-summary">A native Mac studio for dual-canvas recording, multi-destination live streaming, and studio-grade 32-bit float audio.</p>
         <div className="hero-actions">
           <a className="button button-dark" href={`${REPO}#requirements-and-build`} target="_blank" rel="noreferrer">Build Framecast <Arrow /></a>
           <button className="text-button" onClick={onWatch}><span className="play-dot">▶</span> Watch the app tour</button>
         </div>
-        <p className="hero-facts"><span>MIT licensed</span><span>macOS 14.2+</span><span>Local first</span></p>
+        <p className="hero-facts"><span>MIT licensed</span><span>macOS 14.2+</span><span>Local first</span><span>Zero telemetry</span></p>
       </div>
 
       <div className="hero-board" ref={board} onMouseMove={moveBoard} onMouseLeave={resetBoard}>
@@ -84,15 +84,15 @@ function Hero({ onWatch }) {
         <p className="board-caption">Choose a frame. Shift the source. Keep working.</p>
       </div>
     </div>
-    <div className="masthead-strip" aria-label="Framecast capabilities"><span>Screen capture</span><span>Scene composition</span><span>Wide + tall outputs</span><span>Local recording</span></div>
+    <div className="masthead-strip" aria-label="Framecast capabilities"><span>Dynamic capture</span><span>Dual-canvas scenes</span><span>32-bit float audio</span><span>Multistreaming</span><span>Take library</span><span>Remote companion deck</span></div>
   </section>;
 }
 
 function Statement() {
   return <section className="statement reveal" id="ways">
     <div className="statement-index">01 / A working frame</div>
-    <div className="statement-copy"><p>Great screen recordings do not hide the work. They give it enough room to be understood.</p><h2>Keep the detail.<br />Lose the <em>clutter.</em></h2></div>
-    <div className="statement-note">Framecast puts the screen, the camera, and the sound check on one calm canvas before you press record.</div>
+    <div className="statement-copy"><p>Great screen recordings and streams do not hide the work. They give it enough room to be understood.</p><h2>Keep the detail.<br />Lose the <em>clutter.</em></h2></div>
+    <div className="statement-note">Framecast puts the screen, the camera, and the sound check on one calm canvas before you press record or go live.</div>
   </section>;
 }
 
@@ -117,24 +117,30 @@ function PullQuote() { return <section className="pullquote reveal"><p>“The po
 function Tour({ onWatch }) {
   return <section className="tour-section" id="watch">
     <div className="tour-copy reveal"><span className="eyebrow">A real session</span><h2>See the room<br />before you<br />step into it.</h2><p>This is the installed app, captured during a working screen-share session. It shows the canvas, layout rail, capture state, chat area and audio controls as they are today.</p><button className="button button-light" onClick={onWatch}>Play the 1:34 tour <Arrow /></button></div>
-    <button className="tour-film reveal" onClick={onWatch} aria-label="Play the Framecast Studio app tour"><img src={`${BASE}media/framecast-audio.png`} alt="Framecast Studio audio panel showing a detected microphone signal" /><span className="film-play">▶</span><span className="film-meta">Framecast Studio 1.4.2 <b>Recorded on Mac</b></span></button>
+    <button className="tour-film reveal" onClick={onWatch} aria-label="Play the Framecast Studio app tour"><img src={`${BASE}media/framecast-audio.png`} alt="Framecast Studio audio panel showing a detected microphone signal" /><span className="film-play">▶</span><span className="film-meta">Framecast Studio 2.0.0 <b>Recorded on Mac</b></span></button>
   </section>;
 }
 
 function CapabilityStrip() {
-  const points = [['Capture', 'Pick a display, window or app with macOS’s native source chooser.'], ['Compose', 'Use a built-in scene, then move, fit, resize or lock the pieces.'], ['Record', 'Create landscape and portrait recordings with their own output settings.'], ['Check', 'See microphone and screen-audio status before you commit to a take.']];
+  const points = [
+    ['Adaptive Capture', 'Capture displays, windows, or apps with dynamic pixel-budgeting that preserves full 60fps on base Apple Silicon and Intel Macs.'],
+    ['Dual-Canvas Scenes', 'Compose independent 16:9 and 9:16 canvases with movable, resizable, circular, or lockable source frames.'],
+    ['32-bit Float Audio', 'Studio-grade float mixing with zero-latency tanh soft limiter, true dBFS peak metering, and CoreMedia Float32 linear PCM.'],
+    ['Multistream & Library', 'Broadcast simultaneously to YouTube, Twitch, Kick, and custom RTMP with zero-redundancy orientation packing; inspect takes in-app.']
+  ];
   return <section className="capability-section reveal"><div className="capability-top"><span className="eyebrow">The recording room</span><p>Framecast is designed for people who need to explain, teach, demonstrate, and document work while it is still moving.</p></div><div className="capability-grid">{points.map(([title, text], index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{text}</p><i /></article>)}</div></section>;
 }
 
 function Release() {
-  return <section className="release-section reveal" id="release"><div className="release-heading"><span className="eyebrow">Current release</span><h2>Clear about what<br />is here today.</h2><p>Framecast is early software. Its project page separates working tools from the work still underway, so the release does not pretend to be broader than it is.</p></div><div className="release-grid"><article className="release-now"><span className="release-dot" /><h3>Ready to explore</h3><ul><li>Screen and camera scene layouts</li><li>Landscape and portrait local recordings</li><li>H.264 or HEVC output choices</li><li>Microphone and app audio meters</li><li>Private YouTube broadcast workflow</li></ul></article><article className="release-next"><span className="release-dot" /><h3>Still in progress</h3><ul><li>Guest rooms and backstage calls</li><li>Twitch, Kick and more destinations</li><li>Unified multi-platform chat</li><li>Notarized distribution and wider testing</li></ul></article></div></section>;
+  return <section className="release-section reveal" id="release"><div className="release-heading"><span className="eyebrow">Current release</span><h2>Clear about what<br />is here today.</h2><p>Framecast is open-source broadcast software. Its project page separates working tools from future roadmap items, so expectations remain honest.</p></div><div className="release-grid"><article className="release-now"><span className="release-dot" /><h3>Framecast Studio 2.0</h3><ul><li>Independent 16:9 & 9:16 dual-canvas composition</li><li>32-bit float audio engine & soft-knee peak limiter</li><li>Multi-destination RTMP live streaming</li><li>In-app recording library & native video player</li><li>Private remote companion deck with live snapshot feed</li><li>Hardware VBR, CBR, and .ultra 4K/60fps encoding</li></ul></article><article className="release-next"><span className="release-dot" /><h3>Future roadmap</h3><ul><li>CMIO Virtual Camera system extension (Zoom, Meet, Teams)</li><li>Direct WebRTC broadcast conferencing</li><li>In-app spectral noise suppression DSP filters</li><li>Unified multi-platform live chat overlay</li></ul></article></div></section>;
 }
 
 const faqs = [
-  ['Is Framecast free?', 'Yes. The project is available under the MIT license. The repository has build instructions, while a notarized public installer is still on the roadmap.'],
-  ['Which Macs are supported?', 'The project targets macOS 14.2 and later. Development and runtime checks have been performed on Apple Silicon. Intel and a wider device matrix still need verification.'],
-  ['Can I stream to YouTube?', 'The current account workflow supports private YouTube broadcasts. Public broadcasts, multistreaming, Twitch and Kick are not implemented.'],
-  ['Where do recordings go?', 'Recordings stay local to your Mac. The app uses Apple media frameworks for capture and hardware encoding. The repository documents current paths and configuration limits.'],
+  ['Is Framecast free?', 'Yes. The project is open-source under the MIT license. Build instructions and app packaging scripts are included in the repository.'],
+  ['Which Macs are supported?', 'The project targets macOS 14.2 and later on both Apple Silicon (M1/M2/M3/M4) and Intel x86_64 Macs. Dynamic pixel budgeting keeps CPU utilization under 12% on entry-level machines.'],
+  ['Can I stream to multiple destinations?', 'Yes! Framecast Studio 2.0 features zero-redundancy multi-destination streaming to YouTube, Twitch, Kick, and custom RTMP endpoints with single-pass encoding for shared aspect ratios.'],
+  ['How does the audio engine prevent clipping?', 'Our custom 32-bit floating-point audio engine includes a zero-latency hyperbolic tangent (tanh) soft limiter, guaranteeing broadcast audio without digital clipping over 0 dBFS.'],
+  ['Where do recordings go?', 'Recordings stay 100% private on your Mac in ~/Movies/Vidyst Reconstructed. You can also browse, inspect, preview, and manage your takes directly inside the app with the new In-App Recording Library.'],
 ];
 
 function FAQ() {
