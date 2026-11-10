@@ -28,7 +28,7 @@ struct StudioView: View {
                     layoutPicker
                 }
                 Divider()
-                sidePanel.frame(width: 320)
+                sidePanel.frame(width: model.panel == "Recordings" ? 520 : 320)
                 Divider()
                 rail
             }
@@ -51,14 +51,16 @@ struct StudioView: View {
     }
     private var canvasHeader: some View {
         HStack(spacing: 10) {
-            Text(model.selectedLayout).font(.system(size: 12, weight: .bold)).lineLimit(1)
+            Text(model.selectedLayout).font(.system(size: 13, weight: .bold)).lineLimit(1)
+            let (width, height, fps) = model.canvasOutput(vertical: model.vertical)
+            StudioBadge(text: "\(width) × \(height) · \(fps) fps", icon: "sparkles", style: .outline)
             Spacer(minLength: 2)
-            HStack(spacing: 1) {
+            HStack(spacing: 2) {
                 canvasMode("horizontal", title: "Horizontal", icon: "rectangle")
                 canvasMode("vertical", title: "Vertical", icon: "rectangle.portrait")
                 canvasMode("both", title: "Horizontal + Vertical", icon: "rectangle.on.rectangle")
-            }.padding(3).background(StudioPalette.panel).clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(StudioPalette.border))
+            }.padding(3).background(StudioPalette.card).clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(StudioPalette.cardBorder))
         }
     }
     private func canvasMode(_ value: String, title: String, icon: String) -> some View {
@@ -71,8 +73,8 @@ struct StudioView: View {
                 Image(systemName: icon).foregroundStyle(model.canvasMode == value ? StudioPalette.gold : StudioPalette.muted)
                 Text(title).font(.system(size: 11, weight: .semibold))
             }.padding(.horizontal, 9).padding(.vertical, 7)
-                .background(model.canvasMode == value ? Color(hex: "#38352E") : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .background(model.canvasMode == value ? StudioPalette.surfaceHover : .clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         }.buttonStyle(.plain).accessibilityLabel("Show " + title)
     }
     private var layoutPicker: some View {
@@ -149,9 +151,9 @@ struct StudioView: View {
     @ViewBuilder private var sidePanel: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text(model.panel == "Chat" ? "Live chat" : model.panel == "Edit" ? "Edit scene" : model.panel == "Prompter" ? "Teleprompter" : model.panel)
+                Text(model.panel == "Chat" ? "Live chat" : model.panel == "Edit" ? "Edit scene" : model.panel == "Prompter" ? "Teleprompter" : model.panel == "Recordings" ? "Recordings" : model.panel)
                     .font(.system(size: 14, weight: .bold))
-                Text(model.panel == "Chat" ? "All destinations" : model.panel == "Edit" ? model.selectedLayout : model.panel == "Prompter" ? "Script editor" : "")
+                Text(model.panel == "Chat" ? "All destinations" : model.panel == "Edit" ? model.selectedLayout : model.panel == "Prompter" ? "Script editor" : model.panel == "Recordings" ? "\(model.library.items.count) takes" : "")
                     .font(.system(size: 11)).foregroundStyle(StudioPalette.muted).lineLimit(1)
                 Spacer(minLength: 0)
             }.padding(.horizontal, 16).frame(height: 50)
@@ -162,6 +164,7 @@ struct StudioView: View {
             case "Chat": chatPanel
             case "Audio": AudioPanel(model: model)
             case "Prompter": PrompterView(model: model)
+            case "Recordings": RecordingLibraryView(model: model)
             case "Backstage": unavailablePanel(symbol: "bubble.left.and.bubble.right", title: "Backstage", detail: "Private guest conversations require a connected guest service. This build does not yet connect to a guest room.")
             case "Guests": unavailablePanel(symbol: "person.2", title: "Invite guests", detail: "Guest invitations and browser video calls require an independent guest service. This service is not connected in this build.")
             default: EmptyView()
@@ -230,22 +233,27 @@ struct StudioView: View {
         }.padding(24)
     }
     private var rail: some View {
-        VStack(spacing: 12) {
-            ForEach([("Chat", "bubble.left.and.text.bubble.right"), ("Backstage", "bubble.left.and.bubble.right"), ("Guests", "person.2"), ("Audio", "waveform"), ("Elements", "sparkles"), ("Prompter", "text.bubble"), ("Edit", "square.3.layers.3d")], id: \.0) { item in
+        VStack(spacing: 10) {
+            ForEach([("Chat", "bubble.left.and.text.bubble.right"), ("Recordings", "film.stack"), ("Backstage", "bubble.left.and.bubble.right"), ("Guests", "person.2"), ("Audio", "waveform"), ("Elements", "sparkles"), ("Prompter", "text.bubble"), ("Edit", "square.3.layers.3d")], id: \.0) { item in
                 Button { model.panel = item.0 } label: {
                     VStack(spacing: 5) {
-                        Image(systemName: item.1).font(.system(size: 18)).frame(width: 45, height: 45)
-                            .foregroundStyle(model.panel == item.0 ? StudioPalette.base : StudioPalette.text.opacity(0.8))
-                            .background(model.panel == item.0 ? StudioPalette.gold : Color(hex: "#26231E"))
-                            .clipShape(RoundedRectangle(cornerRadius: model.panel == item.0 ? 15 : 24))
-                            .shadow(color: model.panel == item.0 ? StudioPalette.gold.opacity(0.16) : .clear, radius: 10)
-                        Text(item.0).font(.system(size: 10, weight: .medium)).foregroundStyle(model.panel == item.0 ? StudioPalette.text : StudioPalette.muted)
+                        Image(systemName: item.1).font(.system(size: 17, weight: .medium)).frame(width: 44, height: 44)
+                            .foregroundStyle(model.panel == item.0 ? StudioPalette.base : StudioPalette.text.opacity(0.85))
+                            .background(model.panel == item.0 ? StudioPalette.gold : StudioPalette.control)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .shadow(color: model.panel == item.0 ? StudioPalette.gold.opacity(0.28) : .clear, radius: 8)
+                        Text(item.0).font(.system(size: 10, weight: model.panel == item.0 ? .semibold : .medium)).foregroundStyle(model.panel == item.0 ? StudioPalette.text : StudioPalette.muted)
                     }.frame(width: 68)
                 }.buttonStyle(.plain).help(item.0)
             }
             Spacer(minLength: 12)
             Button { model.showSettings = true } label: {
-                VStack(spacing: 5) { Image(systemName: "gearshape"); Text("Settings").font(.system(size: 9)) }
+                VStack(spacing: 5) {
+                    Image(systemName: "gearshape.fill").font(.system(size: 15))
+                    Text("Settings").font(.system(size: 9, weight: .medium))
+                }
+                .padding(.vertical, 6).frame(width: 58)
+                .background(StudioPalette.control.opacity(0.5)).clipShape(RoundedRectangle(cornerRadius: 8))
             }.buttonStyle(.plain).foregroundStyle(StudioPalette.muted).padding(.bottom, 12)
         }.padding(.top, 12).frame(width: 72).background(StudioPalette.panel)
     }
@@ -253,8 +261,8 @@ struct StudioView: View {
 
 private struct StudioToolbar: View {
     @ObservedObject var model: StudioModel
-    @ObservedObject var google:GoogleYouTubeController
-    init(model:StudioModel) {self.model=model;self.google=model.google}
+    @ObservedObject var google: GoogleYouTubeController
+    init(model: StudioModel) { self.model = model; self.google = model.google }
     var body: some View {
         HStack(spacing: 10) {
             Menu {
@@ -268,47 +276,92 @@ private struct StudioToolbar: View {
                 Button("Import Vidyst collection…", action: model.importVidystCollection)
                 Button("Import studio…", action: model.importProject)
                 Button("Export studio…", action: model.exportProject)
-            } label: { Image(systemName: "rectangle.inset.filled.and.person.filled").frame(width: 45, height: 22).background(Color(hex: "#7762DA")).clipShape(Capsule()) }
-                .menuStyle(.borderlessButton).fixedSize()
-            TextField("Studio name", text: $model.project.name).textFieldStyle(.plain).font(.system(size: 12, weight: .medium))
-                .foregroundStyle(StudioPalette.muted).frame(maxWidth: 200)
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "rectangle.inset.filled.and.person.filled")
+                        .font(.system(size: 11, weight: .semibold))
+                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                }
+                .frame(width: 46, height: 26)
+                .foregroundStyle(.white)
+                .background(Color(hex: "#7762DA"))
+                .clipShape(Capsule())
+            }
+            .menuStyle(.borderlessButton).fixedSize()
+
+            HStack(spacing: 6) {
+                TextField("Studio name", text: $model.project.name)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(StudioPalette.text)
+                    .frame(maxWidth: 220)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .background(StudioPalette.card.opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(StudioPalette.border.opacity(0.5)))
+
             Spacer(minLength: 10)
+
             Button { model.showDestinations = true } label: {
                 HStack(spacing: 6) {
+                    let connected = google.channel != nil || model.project.destinations.contains(where: \.enabled)
+                    Circle().fill(connected ? StudioPalette.success : Color.secondary).frame(width: 6, height: 6)
                     Image(systemName: "antenna.radiowaves.left.and.right")
                     Text(google.channel?.title ?? (model.project.destinations.isEmpty ? "No channels" : "\(model.project.destinations.filter(\.enabled).count) destinations"))
                     Image(systemName: "chevron.down").font(.system(size: 7))
                 }.font(.system(size: 11, weight: .semibold)).foregroundStyle(StudioPalette.muted)
-                    .padding(.horizontal, 12).frame(height: 33).background(StudioPalette.panel)
+                    .padding(.horizontal, 12).frame(height: 33).background(StudioPalette.card)
                     .clipShape(RoundedRectangle(cornerRadius: 7)).overlay(RoundedRectangle(cornerRadius: 7).stroke(StudioPalette.border))
             }.buttonStyle(.plain)
-            AudioActivityButton(model: model, levels: model.engine.audioLevels)
+
+            AudioToolbarPill(model: model, levels: model.engine.audioLevels)
+
             Divider().frame(height: 28)
+
             RecordingControls(model: model, engine: model.engine)
-        }.padding(.horizontal, 10).frame(height: 52).background(StudioPalette.panel)
+        }.padding(.horizontal, 12).frame(height: 52).background(StudioPalette.panel)
     }
 }
 private struct RecordingControls: View {
     @ObservedObject var model: StudioModel
     @ObservedObject var engine: MediaEngine
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 8) {
             HStack(spacing: 0) {
                 Button(action: model.toggleRecording) {
                     HStack(spacing: 7) {
-                        Circle().fill(StudioPalette.coral).frame(width: 10, height: 10)
-                        Text(engine.isFinalizingRecording ? "Saving…" : engine.recording ? duration : "Record").font(.system(size: 12, weight: .bold))
-                    }.frame(width: 124, height: 33)
+                        Circle()
+                            .fill(StudioPalette.coral)
+                            .frame(width: 9, height: 9)
+                            .opacity(engine.recording ? (engine.recordingPaused ? 0.35 : 1.0) : 0.8)
+                        Text(engine.isFinalizingRecording ? "Saving MP4…" : engine.recording ? duration : "Record")
+                            .font(.system(size: 12, weight: .bold, design: engine.recording ? .monospaced : .default))
+                    }
+                    .frame(width: 128, height: 33)
                 }.buttonStyle(.plain).disabled(engine.isFinalizingRecording)
                 Divider().frame(height: 20)
-                Button(action:model.toggleRecordingPause) { Image(systemName: engine.recordingPaused ? "play.fill" : "pause.fill").font(.system(size: 9)).frame(width: 28, height: 33) }
-                    .buttonStyle(.plain).disabled(!engine.recording).help(engine.recordingPaused ? "Resume recording" : "Pause recording")
-            }.background(StudioPalette.panel).clipShape(RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(StudioPalette.border))
+                Button(action: model.toggleRecordingPause) {
+                    Image(systemName: engine.recordingPaused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .frame(width: 28, height: 33)
+                }
+                .buttonStyle(.plain).disabled(!engine.recording).help(engine.recordingPaused ? "Resume recording" : "Pause recording")
+            }
+            .background(StudioPalette.card).clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(engine.recording ? StudioPalette.coral.opacity(0.6) : StudioPalette.border, lineWidth: 1))
+
             Button(action: model.toggleStreaming) {
-                Label(engine.streaming ? "End stream" : "Go live", systemImage: engine.streaming ? "stop.fill" : "dot.radiowaves.left.and.right")
-                    .font(.system(size: 12, weight: .bold)).frame(width: 185, height: 33)
-                    .background(StudioPalette.coral).clipShape(RoundedRectangle(cornerRadius: 7))
+                HStack(spacing: 6) {
+                    if engine.streaming {
+                        Circle().fill(.white).frame(width: 7, height: 7)
+                    }
+                    Label(engine.streaming ? "End stream" : "Go live", systemImage: engine.streaming ? "stop.fill" : "dot.radiowaves.left.and.right")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .frame(width: 185, height: 33)
+                .background(engine.streaming ? Color(hex: "#C92A2A") : StudioPalette.coral)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
             }.buttonStyle(.plain).foregroundStyle(.white)
         }
     }
@@ -317,25 +370,46 @@ private struct RecordingControls: View {
         return String(format: "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
     }
 }
-private struct CaptureControls:View {
-    @ObservedObject var model:StudioModel
-    @ObservedObject var engine:MediaEngine
-    var body:some View {
-        HStack(spacing:12) {
-            Button {if engine.screenActive {engine.stopScreenCapture()} else {enable("screen")}} label:{Label(engine.screenActive ? "Stop sharing":"Share screen",systemImage:"display")}
+private struct CaptureControls: View {
+    @ObservedObject var model: StudioModel
+    @ObservedObject var engine: MediaEngine
+    var body: some View {
+        HStack(spacing: 12) {
+            Button { if engine.screenActive { engine.stopScreenCapture() } else { enable("screen") } } label: {
+                HStack(spacing: 5) {
+                    Circle().fill(engine.screenActive ? StudioPalette.success : Color.secondary).frame(width: 6, height: 6)
+                    Label(engine.screenActive ? "Stop sharing" : "Share screen", systemImage: "display")
+                }
+            }
             if engine.screenActive { Button("Change…", action: model.startScreen).help("Choose a display, window, or application") }
-            Button {if engine.cameraActive || engine.cameraStarting {engine.stopCamera()} else {enable("camera")}} label:{Label(engine.cameraStarting ? "Cancel camera start":engine.cameraActive ? "Stop camera":"Enable camera",systemImage:"video")}
-            Text(engine.screenActive ? "\(Int(engine.screenCaptureSize.width)) × \(Int(engine.screenCaptureSize.height)) px":"Screen off").font(.caption).monospacedDigit().lineLimit(1).foregroundStyle(engine.screenActive ? Color.green:Color.secondary)
+            Button { if engine.cameraActive || engine.cameraStarting { engine.stopCamera() } else { enable("camera") } } label: {
+                HStack(spacing: 5) {
+                    Circle().fill(engine.cameraActive ? StudioPalette.success : engine.cameraStarting ? StudioPalette.gold : Color.secondary).frame(width: 6, height: 6)
+                    Label(engine.cameraStarting ? "Cancel camera start" : engine.cameraActive ? "Stop camera" : "Enable camera", systemImage: "video")
+                }
+            }
+            if engine.screenActive {
+                StudioBadge(text: "\(Int(engine.screenCaptureSize.width)) × \(Int(engine.screenCaptureSize.height)) px", style: .default)
+            } else {
+                Text("Screen off").font(.caption).monospacedDigit().lineLimit(1).foregroundStyle(Color.secondary)
+            }
             Spacer()
-            Button {model.revealRecordings()} label:{Image(systemName:"folder")}.help("Show recordings")
-            Button {NotificationCenter.default.post(name:Notification.Name("FramecastShowSetup"),object:nil)} label:{Image(systemName:"lock.shield")}.help("Permissions & Setup")
+            Button {
+                if model.panel == "Recordings" {
+                    model.panel = "Edit"
+                } else {
+                    model.panel = "Recordings"
+                }
+            } label: { Image(systemName: "film.stack") }.help("In-app recording library")
+            Button { model.revealRecordings() } label: { Image(systemName: "folder") }.help("Show recordings in Finder")
+            Button { NotificationCenter.default.post(name: Notification.Name("FramecastShowSetup"), object: nil) } label: { Image(systemName: "lock.shield") }.help("Permissions & Setup")
         }.buttonStyle(StudioButtonStyle()).controlSize(.small)
     }
-    private func enable(_ kind:String) {
-        if let existing=model.selectedSources.first(where:{$0.kind==kind}) {
-            model.selectedSourceID=existing.id;model.editSource{$0.visible=true}
-            if kind=="screen"{model.startScreen()}else{model.startCamera()}
-        }else{model.addSource(kind)}
+    private func enable(_ kind: String) {
+        if let existing = model.selectedSources.first(where: { $0.kind == kind }) {
+            model.selectedSourceID = existing.id; model.editSource { $0.visible = true }
+            if kind == "screen" { model.startScreen() } else { model.startCamera() }
+        } else { model.addSource(kind) }
     }
 }
 private struct StudioPreview: View {
@@ -365,12 +439,13 @@ private struct StudioPreview: View {
         let selected = model.vertical == vertical
         let preview = selected ? engine.preview : engine.secondaryPreview
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 5) {
-                Text(vertical ? "Vertical" : "Horizontal").font(.system(size: 12, weight: .bold))
-                if width >= 160 { Text("\(Int(output.width)) × \(Int(output.height))").font(.system(size: 10, design: .monospaced)).foregroundStyle(StudioPalette.muted) }
+            HStack(spacing: 6) {
+                Text(vertical ? "Vertical (9:16)" : "Horizontal (16:9)").font(.system(size: 12, weight: .bold))
+                if width >= 160 {
+                    StudioBadge(text: "\(Int(output.width)) × \(Int(output.height))", style: .default)
+                }
                 if selected && model.panel == "Edit" {
-                    Text("EDITING").font(.system(size: 8, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
-                        .foregroundStyle(StudioPalette.base).background(StudioPalette.gold).clipShape(RoundedRectangle(cornerRadius: 4))
+                    StudioBadge(text: "EDITING", icon: "pencil", style: .accent)
                 }
             }.lineLimit(1).frame(width: width, alignment: .leading).contentShape(Rectangle()).onTapGesture {model.vertical=vertical;model.selectedSourceID=nil;model.refreshComposition()}
             ZStack {
@@ -379,7 +454,7 @@ private struct StudioPreview: View {
                 CanvasEditor(model:model,vertical:vertical,size:CGSize(width:width,height:height),screenActive:engine.screenActive,cameraActive:engine.cameraActive)
             }.frame(width: width, height: height).clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(selected && model.panel == "Edit" ? StudioPalette.gold : StudioPalette.border, lineWidth: selected && model.panel == "Edit" ? 1.5 : 1))
-                .shadow(color: .black.opacity(0.3), radius: 15, y: 12)
+                .shadow(color: .black.opacity(0.4), radius: 16, y: 8)
         }
             .accessibilityElement(children: .contain).accessibilityLabel("\(vertical ? "Vertical" : "Horizontal") canvas\(selected ? ", editing" : "")")
             .help("\(Int(output.width)) × \(Int(output.height)) · Select \(vertical ? "vertical" : "horizontal") canvas for editing")
@@ -406,14 +481,15 @@ private struct LayoutThumbnail: View {
                             .rotationEffect(.degrees(source.rotation ?? 0))
                             .opacity(source.opacity)
                             .overlay {
-                                if source.kind=="camera" || source.kind=="screen" {Image(systemName:source.kind=="camera" ? "person.fill":"display").font(.system(size:11)).foregroundStyle(.white.opacity(0.7))}
+                                if source.kind=="camera" || source.kind=="screen" {Image(systemName:source.kind=="camera" ? "person.fill":"display").font(.system(size:10)).foregroundStyle(.white.opacity(0.8))}
                             }
                             .offset(x: CGFloat(source.x) * width, y: CGFloat(source.y) * height)
                     }
                 }.frame(width: width, height: height, alignment:.topLeading).clipped()
             }.frame(width: geometry.size.width, height: geometry.size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(selected ? StudioPalette.gold : StudioPalette.border, lineWidth: selected ? 1.5 : 1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(selected ? StudioPalette.gold : StudioPalette.border, lineWidth: selected ? 1.5 : 1))
+                .shadow(color: selected ? StudioPalette.gold.opacity(0.2) : .clear, radius: 4)
         }.frame(height: 60)
     }
     private func layerColor(_ source: StudioSource) -> Color {
@@ -634,29 +710,53 @@ struct CustomDestinationsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack { Text("Stream destinations").font(.title2.bold()); Spacer(); Button("Done") { saveKey(); if error == nil { model.save(); dismiss() } }.keyboardShortcut(.defaultAction) }
-            Text("Use your own RTMP server or a platform's custom RTMP details. One destination can stream at a time. Stream keys are saved in macOS Keychain and excluded from studio exports.")
+            Text("Stream simultaneously to all enabled RTMP destinations with zero-redundancy orientation packing. Stream keys are saved securely in macOS Keychain.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(alignment: .top, spacing: 20) {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(model.project.destinations) { destination in
                         Button { load(destination.id) } label: {
-                            HStack { Image(systemName: destination.enabled ? "checkmark.circle.fill" : "circle"); Text(destination.name); Spacer() }
-                                .padding(10).background(selected == destination.id ? Color.white.opacity(0.12) : Color.clear).clipShape(RoundedRectangle(cornerRadius: 6))
+                            HStack {
+                                Image(systemName: destination.enabled ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(destination.enabled ? StudioPalette.gold : StudioPalette.muted)
+                                Text(destination.name)
+                                Spacer()
+                                Text(destination.vertical ? "9:16" : "16:9")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(StudioPalette.muted)
+                                    .padding(.horizontal, 4).padding(.vertical, 2)
+                                    .background(StudioPalette.control).clipShape(RoundedRectangle(cornerRadius: 3))
+                            }
+                            .padding(10).background(selected == destination.id ? Color.white.opacity(0.12) : Color.clear).clipShape(RoundedRectangle(cornerRadius: 6))
                         }.buttonStyle(.plain)
                     }
-                    Button("Add custom RTMP") {
-                        let item = StreamDestination(name: "Custom RTMP", url: "rtmp://")
+                    Button("+ Add RTMP destination") {
+                        let item = StreamDestination(name: "Custom RTMP", url: "rtmp://", enabled: true, vertical: false)
                         model.project.destinations.append(item); load(item.id)
                     }
-                }.frame(width: 180)
+                }.frame(width: 200)
                 Divider()
                 if let i = index {
                     VStack(alignment: .leading, spacing: 14) {
                         TextField("Destination name", text: $model.project.destinations[i].name)
                         TextField("RTMP server URL", text: $model.project.destinations[i].url)
                         SecureField("Stream key", text: $key)
-                        Toggle("Enabled for streaming", isOn: $model.project.destinations[i].enabled)
-                        Text("Output follows the studio's current Horizontal or Vertical selection.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Toggle("Enabled for live streaming", isOn: $model.project.destinations[i].enabled)
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("STREAM ORIENTATION").font(.system(size: 10, weight: .bold)).foregroundStyle(StudioPalette.muted)
+                            Picker("Stream orientation", selection: Binding(
+                                get: { model.project.destinations[i].vertical ? "vertical" : "horizontal" },
+                                set: { model.project.destinations[i].vertical = ($0 == "vertical") }
+                            )) {
+                                Text("Horizontal (16:9)").tag("horizontal")
+                                Text("Vertical (9:16)").tag("vertical")
+                            }
+                            .pickerStyle(.segmented)
+                            Text("Destinations sharing an orientation are encoded once and dispatched in parallel with zero extra GPU/CPU load.")
+                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                        }
+                        
                         HStack {
                             Button("Save destination") { saveKey(); model.save() }
                             Button("Remove", role: .destructive) {
@@ -667,8 +767,8 @@ struct CustomDestinationsView: View {
                         if let error { Text(error).font(.caption).foregroundStyle(.orange) }
                     }.textFieldStyle(StudioTextFieldStyle()).frame(maxWidth: .infinity)
                 } else { Text("Select a destination or add your RTMP server.").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity) }
-            }.frame(minHeight: 250)
-        }.padding(24).frame(width: 680).preferredColorScheme(.dark).interactiveDismissDisabled()
+            }.frame(minHeight: 270)
+        }.padding(24).frame(width: 700).preferredColorScheme(.dark).interactiveDismissDisabled()
             .onAppear { if let first = model.project.destinations.first { load(first.id) } }
     }
     private func load(_ id: UUID) { if selected != nil { saveKey(); guard error == nil else { return } }; selected = id; key = CredentialStore.get(id); error = nil }

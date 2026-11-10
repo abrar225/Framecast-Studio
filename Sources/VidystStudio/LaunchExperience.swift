@@ -32,7 +32,7 @@ private struct PermissionSetupView:View {
     var body:some View {
         HStack(spacing:48) {
             VStack(alignment:.leading,spacing:22) {
-                Image(systemName:"rectangle.inset.filled.and.person.filled").font(.system(size:64)).foregroundStyle(Color(hex:"#F5C849"))
+                Image(systemName:"rectangle.inset.filled.and.person.filled").font(.system(size:64)).foregroundStyle(StudioPalette.gold)
                 Text("Framecast Studio").font(.system(size:32,weight:.bold))
                 Text("Your screen.\nYour studio.").font(.system(size:40,weight:.semibold))
                 Text("Record a walkthrough, build your scene, or stream privately to YouTube. Set up access before you begin.").foregroundStyle(.secondary)
@@ -46,7 +46,7 @@ private struct PermissionSetupView:View {
                 Text("Permissions belong to Framecast Studio separately from Vidyst. If you already enabled this app in Settings, quit and reopen it so macOS can apply the change.").font(.caption).foregroundStyle(.secondary)
                 HStack {Button("Check again",action:refresh);Spacer();Button((screen || sessionScreen) ? "Open studio":"Continue to studio",action:done).buttonStyle(StudioButtonStyle(prominent: true)).keyboardShortcut(.defaultAction)}
             }.frame(maxWidth:460)
-        }.padding(48).frame(maxWidth:.infinity,maxHeight:.infinity).background(Color(hex:"#141310")).tint(Color(hex:"#F5C849"))
+        }.padding(48).frame(maxWidth:.infinity,maxHeight:.infinity).background(StudioPalette.base).tint(StudioPalette.gold)
         .onReceive(engine.$screenActive) { sessionScreen = $0 }
         .onAppear(perform:refresh)
         .onReceive(Timer.publish(every:1,on:.main,in:.common).autoconnect()){_ in refresh()}
@@ -56,6 +56,23 @@ private struct PermissionSetupView:View {
     func settings(_ pane:String){if let url=URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_"+pane){NSWorkspace.shared.open(url)}}
     func request(_ media:AVMediaType){let value=AVCaptureDevice.authorizationStatus(for:media);if value == .authorized {refresh();return};if value == .denied || value == .restricted {settings(media == .video ? "Camera":"Microphone");return};busy=true;Task{_=await AVCaptureDevice.requestAccess(for:media);refresh();busy=false}}
     func row(_ title:String,icon:String,detail:String,allowed:Bool,status:String,action:@escaping()->Void)->some View {
-        HStack(alignment:.top,spacing:14){Image(systemName:icon).font(.title2).frame(width:30).foregroundStyle(Color(hex:"#F5C849"));VStack(alignment:.leading,spacing:5){Text(title).font(.headline);Text(detail).font(.callout).foregroundStyle(.secondary);Label(status,systemImage:allowed ? "checkmark.circle.fill":"circle").font(.caption).foregroundStyle(allowed ? Color.green:Color.secondary)};Spacer();if !allowed{Button("Enable",action:action).disabled(busy)}}.padding(18).background(Color(hex:"#24221E")).clipShape(RoundedRectangle(cornerRadius:12))
+        HStack(alignment:.top,spacing:14){
+            Image(systemName:icon).font(.title2).frame(width:30).foregroundStyle(StudioPalette.gold)
+            VStack(alignment:.leading,spacing:6){
+                HStack {
+                    Text(title).font(.headline)
+                    Spacer()
+                    StudioBadge(text: status, icon: allowed ? "checkmark.circle.fill" : "circle", style: allowed ? .success : .default)
+                }
+                Text(detail).font(.callout).foregroundStyle(.secondary)
+            }
+            if !allowed {
+                Button("Enable", action: action).disabled(busy)
+            }
+        }
+        .padding(18)
+        .background(StudioPalette.card)
+        .clipShape(RoundedRectangle(cornerRadius:12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(StudioPalette.cardBorder, lineWidth: 1))
     }
 }

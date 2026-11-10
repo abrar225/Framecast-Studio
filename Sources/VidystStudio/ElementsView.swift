@@ -34,10 +34,16 @@ struct ElementsView:View {
     private func card(_ e:StudioElement)->some View {
         VStack(alignment:.leading,spacing:12) {
             HStack(spacing:10) {
-                Image(systemName:e.kind=="qr" ? "qrcode":"text.below.photo").foregroundStyle(Color(hex:"#F5C849"))
-                VStack(alignment:.leading,spacing:3){Text(e.name).font(.system(size:13,weight:.semibold)).lineLimit(1);Text(e.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)}
+                Image(systemName:e.kind=="qr" ? "qrcode":"text.below.photo").foregroundStyle(StudioPalette.gold)
+                VStack(alignment:.leading,spacing:3){
+                    HStack(spacing: 6) {
+                        Text(e.name).font(.system(size:13,weight:.semibold)).lineLimit(1)
+                        StudioBadge(text: e.kind.uppercased(), style: .default)
+                    }
+                    Text(e.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
                 Spacer(minLength:0)
-                Button {model.toggleElement(e.id)} label:{Image(systemName:e.visible ? "eye.fill":"eye").frame(width:30,height:30)}.buttonStyle(.plain).foregroundStyle(e.visible ? Color(hex:"#F5C849"):.secondary).help(e.visible ? "Hide overlay":"Show overlay")
+                Button {model.toggleElement(e.id)} label:{Image(systemName:e.visible ? "eye.fill":"eye").frame(width:30,height:30)}.buttonStyle(.plain).foregroundStyle(e.visible ? StudioPalette.gold : .secondary).help(e.visible ? "Hide overlay":"Show overlay")
                 Button {state.editing=state.editing==e.id ? nil:e.id} label:{Image(systemName:state.editing==e.id ? "chevron.up":"slider.horizontal.3").frame(width:30,height:30)}.buttonStyle(.plain).help("Edit " + e.name)
             }
             if state.editing==e.id {
@@ -53,7 +59,7 @@ struct ElementsView:View {
                 Stepper(value:binding(e.id,\.autoHideAfter,0),in:0...120,step:5){Text(e.autoHideAfter==0 ? "Auto-hide off":"Hide after \(Int(e.autoHideAfter)) seconds").font(.caption)}
                 HStack {Button("Done"){state.editing=nil};Spacer();Button("Remove",role:.destructive){model.removeElement(e.id);state.editing=nil}.buttonStyle(.borderless)}
             }
-        }.padding(13).background(Color(hex:"#24221E")).clipShape(RoundedRectangle(cornerRadius:10)).overlay(RoundedRectangle(cornerRadius:10).stroke(e.visible ? Color(hex:"#F5C849").opacity(0.5):Color.white.opacity(0.06)))
+        }.padding(13).background(StudioPalette.card).clipShape(RoundedRectangle(cornerRadius:10)).overlay(RoundedRectangle(cornerRadius:10).stroke(e.visible ? StudioPalette.gold.opacity(0.6):StudioPalette.cardBorder))
     }
     private func field(_ title:String,text:Binding<String>)->some View {
         VStack(alignment:.leading,spacing:5){Text(title).font(.caption).foregroundStyle(.secondary);TextField(title,text:text).textFieldStyle(StudioTextFieldStyle())}

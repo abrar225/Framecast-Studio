@@ -3,7 +3,7 @@ import SwiftUI
 import AVFoundation
 
 @main enum StudioLauncher {
-    static var delegate: StudioDelegate?
+    @MainActor static var delegate: StudioDelegate?
     @MainActor private static func finishProbe(report: [String: Any]?, error: Error?) -> Never {
         let result: [String: Any] = ["verdict": error == nil ? "PASS" : "FAIL", "report": report ?? [:], "error": error?.localizedDescription ?? ""]
         if let index = CommandLine.arguments.firstIndex(of: "--diagnostic-result"), CommandLine.arguments.indices.contains(index + 1) {

@@ -30,13 +30,15 @@ struct SettingsView: View {
                     ForEach(tabs, id: \.0) { item in
                         Button { model.settingsTab = item.0 } label: {
                             Label(item.0, systemImage: item.1)
+                                .font(.system(size: 13, weight: model.settingsTab == item.0 ? .semibold : .regular))
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 9)
-                                .background(model.settingsTab == item.0 ? Color(hex: "#38332A") : .clear)
+                                .foregroundStyle(model.settingsTab == item.0 ? StudioPalette.gold : StudioPalette.text.opacity(0.85))
+                                .background(model.settingsTab == item.0 ? StudioPalette.surfaceHover : .clear)
                                 .clipShape(RoundedRectangle(cornerRadius: 7))
                         }.buttonStyle(.plain)
                     }
                     Spacer()
-                }.padding(12).frame(width: 205).background(Color(hex: "#141310"))
+                }.padding(12).frame(width: 205).background(StudioPalette.base)
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {

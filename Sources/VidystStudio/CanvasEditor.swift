@@ -57,15 +57,25 @@ private struct SourceFrameControl:View {
                 .onTapGesture {model.selectSource(source.id,onVerticalCanvas:vertical)}
                 .gesture(DragGesture(minimumDistance:2,coordinateSpace:.named(coordinateName)).onChanged {move($0.translation)}.onEnded {value in move(value.translation);interaction.commit()})
             if selected {
-                Rectangle().stroke(Color(hex:"#F5C849"),style:StrokeStyle(lineWidth:1.5,dash:locked ? [4,3]:[])).allowsHitTesting(false)
-                Label(source.name,systemImage:locked ? "lock.fill":"move.3d")
-                    .font(.system(size:10,weight:.semibold)).lineLimit(1).padding(4).foregroundStyle(.black).background(Color(hex:"#F5C849")).allowsHitTesting(false)
+                Rectangle().stroke(StudioPalette.gold, style: StrokeStyle(lineWidth: 1.5, dash: locked ? [4, 3] : [])).allowsHitTesting(false)
+                HStack(spacing: 4) {
+                    Label(source.name, systemImage: locked ? "lock.fill" : "move.3d")
+                        .font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                    if width >= 120 {
+                        let (w, h) = (Int(source.width * model.canvasSize(vertical: vertical).width), Int(source.height * model.canvasSize(vertical: vertical).height))
+                        Text("\(w)×\(h)").font(.system(size: 8, weight: .bold, design: .monospaced)).opacity(0.8)
+                    }
+                }
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .foregroundStyle(StudioPalette.base).background(StudioPalette.gold).clipShape(RoundedRectangle(cornerRadius: 3))
+                .allowsHitTesting(false)
                 if !locked {
                     ForEach(CanvasHandle.allCases.filter{width>80 && height>80 || ($0.horizontal != 0 && $0.vertical != 0)},id:\.self) {handle in
-                        RoundedRectangle(cornerRadius:2).fill(Color(hex:"#F5C849")).frame(width:8,height:8)
-                            .frame(width:24,height:24).contentShape(Rectangle())
-                            .position(x:(handle.horizontal+1)*width/2,y:(handle.vertical+1)*height/2)
-                            .gesture(DragGesture(minimumDistance:0,coordinateSpace:.named(coordinateName)).onChanged {resize(handle,$0.translation)}.onEnded {value in resize(handle,value.translation);interaction.commit()})
+                        RoundedRectangle(cornerRadius: 2).fill(StudioPalette.gold).frame(width: 8, height: 8)
+                            .overlay(RoundedRectangle(cornerRadius: 2).stroke(StudioPalette.base, lineWidth: 1))
+                            .frame(width: 24, height: 24).contentShape(Rectangle())
+                            .position(x: (handle.horizontal + 1) * width / 2, y: (handle.vertical + 1) * height / 2)
+                            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateName)).onChanged { resize(handle, $0.translation) }.onEnded { value in resize(handle, value.translation); interaction.commit() })
                             .accessibilityLabel("Resize \(source.name), \(handle.rawValue)")
                     }
                 }
@@ -118,7 +128,8 @@ struct SourceFrameTools:View {
                         .toggleStyle(.checkbox).disabled(source.isCircle(canvas:model.canvasSize(vertical:model.vertical)))
                 }
                 Text(source.locked==true ? "Unlock to move or resize this frame.":"Drag to move. Use the edge handles to resize. Hold Option to bypass snapping; Escape cancels.").font(.system(size:10)).foregroundStyle(.secondary)
-            }.font(.system(size:11)).padding(11).background(Color(hex:"#24221E")).clipShape(RoundedRectangle(cornerRadius:8))
+            }.font(.system(size:11)).padding(11).background(StudioPalette.card).clipShape(RoundedRectangle(cornerRadius:8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(StudioPalette.cardBorder, lineWidth: 1))
         }
     }
     private func size(_ title:String,_ fraction:Double)->some View {
