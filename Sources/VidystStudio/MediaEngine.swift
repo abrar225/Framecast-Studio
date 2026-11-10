@@ -472,11 +472,26 @@ private final class CameraMicrophoneReceiver: NSObject, AVCaptureVideoDataOutput
     }
 
     /// Broadcast simultaneously to multiple RTMP destinations with failure isolation and shared composition.
+    static var ffmpegExecutable: String? {
+        let candidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
+        if let found = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            return found
+        }
+        if let path = ProcessInfo.processInfo.environment["PATH"] {
+            for dir in path.split(separator: ":") {
+                let candidate = String(dir) + "/ffmpeg"
+                if FileManager.default.isExecutableFile(atPath: candidate) {
+                    return candidate
+                }
+            }
+        }
+        return nil
+    }
+
     func startStreaming(targets: [StreamTarget], settings: StreamEncodingSettings = StreamEncodingSettings()) {
         guard !streaming, !targets.isEmpty else { return }
         guard settings.isValid else { failure = .invalid("Streaming preferences are invalid."); return }
-        let candidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
-        guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+        guard let executable = Self.ffmpegExecutable else {
             failure = MediaFailure(code: .encoderUnavailable, operation: "Streaming", message: "FFmpeg is unavailable.", recovery: "Install FFmpeg independently at /opt/homebrew/bin/ffmpeg or /usr/local/bin/ffmpeg, then retry."); return
         }
 

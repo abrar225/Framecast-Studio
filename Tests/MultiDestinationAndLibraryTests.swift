@@ -48,6 +48,11 @@ import Foundation
         #expect(!engine.streaming)
         #expect(engine.activeStreamOutputs.isEmpty)
 
+        guard MediaEngine.ffmpegExecutable != nil else {
+            print("Note: FFmpeg not found on this test environment; skipping live multi-pipe test.")
+            return
+        }
+
         let t1 = StreamTarget(destinationID: UUID(), name: "YouTube", url: "rtmp://a.rtmp.youtube.com/live2", key: "key1", vertical: false, width: 1280, height: 720, fps: 30, configuration: RenderConfiguration(width: 1280, height: 720))
         let t2 = StreamTarget(destinationID: UUID(), name: "Twitch", url: "rtmp://live.twitch.tv/app", key: "key2", vertical: false, width: 1280, height: 720, fps: 30, configuration: RenderConfiguration(width: 1280, height: 720))
         let t3 = StreamTarget(destinationID: UUID(), name: "Kick Vertical", url: "rtmp://fa7231787.global-contribute.live-video.net/app", key: "key3", vertical: true, width: 720, height: 1280, fps: 30, configuration: RenderConfiguration(width: 720, height: 1280))
