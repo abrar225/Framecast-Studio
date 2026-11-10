@@ -1,6 +1,20 @@
 import Foundation
 import Darwin
 
+/// Independent target specification for multi-destination RTMP broadcasting.
+struct StreamTarget: Identifiable, Equatable {
+    var id = UUID()
+    var destinationID: UUID?
+    var name: String
+    var url: String
+    var key: String
+    var vertical: Bool = false
+    var width: Int
+    var height: Int
+    var fps: Int
+    var configuration: RenderConfiguration?
+}
+
 /// One frame at most waits for FFmpeg. A slow network drops whole frames, never partial frames.
 final class StreamPipe: @unchecked Sendable {
     let process = Process()

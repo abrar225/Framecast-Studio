@@ -40,6 +40,12 @@ struct StreamDestination: Identifiable, Codable, Equatable {
     var enabled = true
     var vertical = false
 }
+/// Exported recording report: per-output encoder statistics plus the engine's
+/// per-stage render duty cycle over the last statistics window.
+struct RecordingReport: Codable {
+    let outputs: [RecordingStatistics]
+    let renderTiming: [String: Double]
+}
 struct ChatMessage: Identifiable, Codable {
     var id = UUID()
     var author: String
@@ -186,6 +192,7 @@ enum CredentialStore {
     @Published var remoteAddress = ""
     @Published var lastSaved: Date?
     let engine = MediaEngine()
+    let library = RecordingLibraryManager()
     lazy var canvasInteraction=CanvasInteraction(model:self)
     let editUndoManager=UndoManager()
     private let lowerThirdLayerID=UUID()
@@ -197,6 +204,7 @@ enum CredentialStore {
     private var layoutSnapshots: [UUID:StudioScene] = [:]
     private var elementDeadlines: [UUID:Date] = [:]
     private var remote: RemoteServer?
+    private var finalizationWatcher: AnyCancellable?
     static let layouts = StudioLayouts.names
 
     init(projectURL: URL? = nil) {
@@ -236,6 +244,11 @@ enum CredentialStore {
         syncAudio()
         refreshComposition()
         youtubeChatSubscription=youtube.$messages.sink { [weak self] messages in self?.receiveYouTubeChat(messages) }
+        library.scan(folder: URL(fileURLWithPath: project.recordingFolder))
+        finalizationWatcher = engine.$isFinalizingRecording.sink { [weak self] finalizing in
+            guard let self, !finalizing else { return }
+            self.library.scan(folder: URL(fileURLWithPath: self.project.recordingFolder))
+        }
     }
     func restoreCanvasSelection() {
         if !project.scenes.contains(where:{$0.id==project.selectedSceneID}){project.selectedSceneID=project.scenes.first?.id}
@@ -487,20 +500,33 @@ enum CredentialStore {
         if youtubeSession.ownsInput || youtubeSession.ownsBroadcast {youtubeSession.endPrivateStream();return}
         syncAudio()
         if engine.streaming { engine.stopStreaming(); return }
-        let destinations=project.destinations.filter{$0.enabled}
-        guard let d=destinations.first else { showDestinations=true;return }
-        if destinations.count>1 { notice="This build supports one active RTMP destination. Disable the others before starting.";return }
-        let key=CredentialStore.get(d.id)
-        let target=renderConfiguration(onVerticalCanvas:d.vertical)
-        engine.startStreaming(url:d.url,key:key,width:target.width,height:target.height,fps:d.vertical ? (project.verticalFPS ?? project.fps) : project.fps,configuration:target,settings:(project.mediaPreferences ?? MediaPreferences()).streaming)
+        let destinations = project.destinations.filter { $0.enabled }
+        guard !destinations.isEmpty else { showDestinations = true; return }
+        var targets: [StreamTarget] = []
+        for d in destinations {
+            let key = CredentialStore.get(d.id)
+            let targetConfig = renderConfiguration(onVerticalCanvas: d.vertical)
+            let fps = d.vertical ? (project.verticalFPS ?? project.fps) : project.fps
+            let target = StreamTarget(destinationID: d.id, name: d.name, url: d.url, key: key, vertical: d.vertical, width: targetConfig.width, height: targetConfig.height, fps: fps, configuration: targetConfig)
+            targets.append(target)
+        }
+        engine.startStreaming(targets: targets, settings: (project.mediaPreferences ?? MediaPreferences()).streaming)
     }
-    func chooseRecordingFolder() { let p=NSOpenPanel();p.canChooseFiles=false;p.canChooseDirectories=true;p.canCreateDirectories=true;if p.runModal() == .OK,let u=p.url { project.recordingFolder=u.path;save() } }
+    func chooseRecordingFolder() {
+        let p = NSOpenPanel(); p.canChooseFiles = false; p.canChooseDirectories = true; p.canCreateDirectories = true
+        if p.runModal() == .OK, let u = p.url {
+            project.recordingFolder = u.path
+            save()
+            library.scan(folder: u)
+        }
+    }
     func exportRecordingReport() {
         let panel = NSSavePanel(); panel.nameFieldStringValue = "Framecast-recording-report.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try encoder.encode(engine.recordingStatistics).write(to: url, options: .atomic)
+            let report = RecordingReport(outputs: engine.recordingStatistics, renderTiming: engine.renderTiming)
+            try encoder.encode(report).write(to: url, options: .atomic)
         } catch { notice = "Recording report could not be saved: \(error.localizedDescription)" }
     }
     func revealRecordings() { let u=URL(fileURLWithPath:project.recordingFolder);try? FileManager.default.createDirectory(at:u,withIntermediateDirectories:true);NSWorkspace.shared.open(u) }
