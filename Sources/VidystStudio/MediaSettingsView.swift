@@ -43,6 +43,8 @@ struct RecordingEncodingControls: View {
             if value.wrappedValue.quality == .custom {
                 StudioValueSlider(title: "Video bitrate · Mbps", value: value.bitrateMbps, range: 0.5...120)
             }
+            Text("Rate control").font(.system(size: 11)).foregroundStyle(.secondary)
+            StudioSegmentedControl(options: RateControlMode.allCases.map { ($0.title, $0) }, selection: value.rateControl)
             Toggle("Require hardware encoding", isOn: value.requireHardware).font(.system(size: 11))
             Text("Estimated video · \(String(format: "%.1f", Double(rate) / 1_000_000)) Mbps")
                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(StudioPalette.gold)
@@ -96,7 +98,7 @@ private struct AudioBitrateField: View {
     @Binding var value: Int
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Stereo audio ·48kHz").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("Stereo audio · 48 kHz").font(.system(size: 11)).foregroundStyle(.secondary)
             StudioMenuField(title: "Stereo audio bitrate", options: MediaPreferences.audioBitrates.map { (String($0), "\($0) kbps") }, selection: Binding(get: { String(value) }, set: { if let parsed = Int($0), MediaPreferences.audioBitrates.contains(parsed) { value = parsed } }))
         }
     }

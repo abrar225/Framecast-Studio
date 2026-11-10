@@ -63,8 +63,15 @@ struct AudioMixerPanel: View {
                     .font(.system(size: 11)).foregroundStyle(StudioPalette.muted).fixedSize(horizontal: false, vertical: true)
             }
             channel {
-                AudioMeterView(title: "Output mix", symbol: "waveform.path", reading: levels.snapshot.output)
-                Text("The combined sound sent to your recordings and stream.")
+                HStack {
+                    AudioMeterView(title: "Output mix", symbol: "waveform.path", reading: levels.snapshot.output)
+                }
+                HStack(spacing: 6) {
+                    StudioBadge(text: "32-BIT FLOAT", icon: "cpu", style: .accent)
+                    StudioBadge(text: "SOFT LIMITER", icon: "shield.fill", style: .default)
+                    StudioBadge(text: "48 kHz", style: .default)
+                }
+                Text("The combined studio sound sent to your recordings and stream with 32-bit float headroom and zero-latency tanh peak limiting.")
                     .font(.system(size: 11)).foregroundStyle(StudioPalette.muted).fixedSize(horizontal: false, vertical: true)
             }
             Text("Your permitted microphone stays ready before recording. Pause the input when idle, or mute it to silence the output.")
@@ -78,7 +85,7 @@ struct AudioMixerPanel: View {
     private func channel<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12, content: content)
             .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-            .background(StudioPalette.control.opacity(0.6)).clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(StudioPalette.border.opacity(0.65)))
+            .background(StudioPalette.card).clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(StudioPalette.cardBorder, lineWidth: 1))
     }
 }

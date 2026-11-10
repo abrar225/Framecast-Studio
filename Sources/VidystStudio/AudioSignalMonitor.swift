@@ -44,13 +44,14 @@ struct AudioMeterSnapshot: Equatable {
         signals[input.rawValue] = Signal(rms: sqrt(sum / Double(packet.samples.count)), peak: peak, arrival: now)
     }
     func receiveMixed(_ block: MixedAudioBlock, now: Double) {
-        guard !block.samples.isEmpty else { return }
+        let floats = block.floatSamples
+        guard !floats.isEmpty else { return }
         var sum = 0.0, peak = 0.0
-        for sample in block.samples {
-            let value = abs(Double(sample)) / 32768
+        for sample in floats {
+            let value = sample.isFinite ? abs(Double(sample)) : 0
             sum += value * value; peak = max(peak, value)
         }
-        outputSignal = Signal(rms: sqrt(sum / Double(block.samples.count)), peak: peak, arrival: now)
+        outputSignal = Signal(rms: sqrt(sum / Double(floats.count)), peak: peak, arrival: now)
     }
     func clear(_ input: AudioInput) { signals[input.rawValue] = Signal() }
     func refresh(now: Double, microphoneState: AudioCaptureState, capturedState: AudioCaptureState,

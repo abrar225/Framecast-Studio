@@ -43,11 +43,42 @@ struct AudioPacket {
     }
 }
 
+/// Zero-latency soft-knee audio limiter.
+/// Pass-through is strictly linear for normal signals (|sample| <= 1.0).
+/// Audio exceeding 0 dBFS is smoothly saturated using a tanh curve,
+/// preventing harsh digital square-wave clipping while preserving high dynamic range.
+enum AudioLimiter {
+    @inline(__always) static func limit(_ sample: Double) -> Double {
+        let absVal = abs(sample)
+        guard absVal > 1.0 else { return sample }
+        let compressed = 1.0 + 0.2 * tanh((absVal - 1.0) / 0.2)
+        return sample < 0 ? -compressed : compressed
+    }
+}
+
 struct MixedAudioBlock {
     var firstFrame: Int64
-    var samples: [Int16] // interleaved stereo at 48 kHz
-    var frames: Int { samples.count / 2 }
+    var floatSamples: [Float] // interleaved stereo at 48 kHz in Float32
+    var samples: [Int16]      // interleaved stereo at 48 kHz in Int16
+    var frames: Int { floatSamples.count / 2 }
     var data: Data { samples.withUnsafeBytes { Data($0) } }
+    var floatData: Data { floatSamples.withUnsafeBytes { Data($0) } }
+
+    init(firstFrame: Int64, floatSamples: [Float], samples: [Int16]? = nil) {
+        self.firstFrame = firstFrame
+        self.floatSamples = floatSamples
+        if let samples {
+            self.samples = samples
+        } else {
+            self.samples = floatSamples.map { Int16(min(32767, max(-32768, Int(round(Double($0) * 32768))))) }
+        }
+    }
+
+    init(firstFrame: Int64, samples: [Int16]) {
+        self.firstFrame = firstFrame
+        self.samples = samples
+        self.floatSamples = samples.map { Float($0) / 32768.0 }
+    }
 }
 
 /// Common host-clock timeline, one bounded ring per input. Mixing happens once before
@@ -113,6 +144,7 @@ struct AudioTimelineMixer {
         while cursor < end {
             let count = Int(min(Int64(Self.rate / 100), end - cursor))
             var pcm = [Int16](repeating: 0, count: count * 2)
+            var floatPcm = [Float](repeating: 0, count: count * 2)
             for offset in 0..<count {
                 let frame = cursor + Int64(offset), slot = Int(frame % Int64(Self.capacity))
                 var left = 0.0, right = 0.0
@@ -120,10 +152,15 @@ struct AudioTimelineMixer {
                     left += Double(tracks[input].left[slot]) * gains[input]
                     right += Double(tracks[input].right[slot]) * gains[input]
                 }
-                pcm[offset * 2] = Int16(min(32767, max(-32768, left * 32768)))
-                pcm[offset * 2 + 1] = Int16(min(32767, max(-32768, right * 32768)))
+                let limitedLeft = AudioLimiter.limit(left)
+                let limitedRight = AudioLimiter.limit(right)
+                floatPcm[offset * 2] = Float(limitedLeft)
+                floatPcm[offset * 2 + 1] = Float(limitedRight)
+                pcm[offset * 2] = Int16(min(32767, max(-32768, Int(round(limitedLeft * 32768)))))
+                pcm[offset * 2 + 1] = Int16(min(32767, max(-32768, Int(round(limitedRight * 32768)))))
             }
-            blocks.append(MixedAudioBlock(firstFrame: cursor, samples: pcm)); cursor += Int64(count)
+            blocks.append(MixedAudioBlock(firstFrame: cursor, floatSamples: floatPcm, samples: pcm))
+            cursor += Int64(count)
         }
         self.cursor = cursor
         return blocks
@@ -166,20 +203,56 @@ struct RecordingAudioClock {
         emit(until: end)
         return result
     }
+    func mapFloat(_ block: MixedAudioBlock) -> [(frame: Int64, data: Data)] {
+        let end = block.firstFrame + Int64(block.frames)
+        var cursor = max(origin, block.firstFrame), removed: Int64 = 0
+        var result: [(Int64, Data)] = []
+        func emit(until boundary: Int64) {
+            let stop = min(end, boundary)
+            guard stop > cursor else { return }
+            let range = Int(cursor - block.firstFrame) * 2..<Int(stop - block.firstFrame) * 2
+            result.append((cursor - origin - removed, Array(block.floatSamples[range]).withUnsafeBytes { Data($0) }))
+            cursor = stop
+        }
+        for (start, stop) in pauses {
+            if cursor >= end { break }
+            emit(until: start)
+            if cursor >= start {
+                let pauseEnd = stop ?? end
+                cursor = max(cursor, min(end, pauseEnd))
+                removed += max(0, pauseEnd - max(origin, start))
+            }
+        }
+        emit(until: end)
+        return result
+    }
 }
 
 enum MixedAudioSample {
-    static func make(data: Data, frame: Int64) -> CMSampleBuffer? {
-        guard !data.isEmpty, data.count % 4 == 0 else { return nil }
-        var asbd = AudioStreamBasicDescription(mSampleRate: Float64(AudioTimelineMixer.rate), mFormatID: kAudioFormatLinearPCM,
-            mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked,
-            mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 2, mBitsPerChannel: 16, mReserved: 0)
+    static func make(data: Data, frame: Int64, isFloat: Bool = false) -> CMSampleBuffer? {
+        let bytesPerSample = isFloat ? 4 : 2
+        let bytesPerFrame = bytesPerSample * 2
+        guard !data.isEmpty, data.count % bytesPerFrame == 0 else { return nil }
+        let flags: AudioFormatFlags = isFloat
+            ? (kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked)
+            : (kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked)
+        var asbd = AudioStreamBasicDescription(
+            mSampleRate: Float64(AudioTimelineMixer.rate),
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: flags,
+            mBytesPerPacket: UInt32(bytesPerFrame),
+            mFramesPerPacket: 1,
+            mBytesPerFrame: UInt32(bytesPerFrame),
+            mChannelsPerFrame: 2,
+            mBitsPerChannel: UInt32(bytesPerSample * 8),
+            mReserved: 0
+        )
         var format: CMAudioFormatDescription?, block: CMBlockBuffer?, sample: CMSampleBuffer?
         guard CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault, asbd: &asbd, layoutSize: 0, layout: nil, magicCookieSize: 0, magicCookie: nil, extensions: nil, formatDescriptionOut: &format) == noErr,
               CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil, blockLength: data.count, blockAllocator: kCFAllocatorDefault, customBlockSource: nil, offsetToData: 0, dataLength: data.count, flags: 0, blockBufferOut: &block) == noErr, let block else { return nil }
         guard data.withUnsafeBytes({ CMBlockBufferReplaceDataBytes(with: $0.baseAddress!, blockBuffer: block, offsetIntoDestination: 0, dataLength: data.count) }) == noErr else { return nil }
         var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: Int32(AudioTimelineMixer.rate)), presentationTimeStamp: CMTime(value: frame, timescale: Int32(AudioTimelineMixer.rate)), decodeTimeStamp: .invalid)
-        guard CMSampleBufferCreateReady(allocator: kCFAllocatorDefault, dataBuffer: block, formatDescription: format, sampleCount: data.count / 4, sampleTimingEntryCount: 1, sampleTimingArray: &timing, sampleSizeEntryCount: 0, sampleSizeArray: nil, sampleBufferOut: &sample) == noErr else { return nil }
+        guard CMSampleBufferCreateReady(allocator: kCFAllocatorDefault, dataBuffer: block, formatDescription: format, sampleCount: data.count / bytesPerFrame, sampleTimingEntryCount: 1, sampleTimingArray: &timing, sampleSizeEntryCount: 0, sampleSizeArray: nil, sampleBufferOut: &sample) == noErr else { return nil }
         return sample
     }
 }
