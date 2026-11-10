@@ -1,0 +1,59 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Sources/**'
+      - 'Tests/**'
+      - 'scripts/**'
+      - 'ThirdParty/**'
+      - 'Package.swift'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Sources/**'
+      - 'Tests/**'
+      - 'scripts/**'
+      - 'ThirdParty/**'
+      - 'Package.swift'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build debug target
+        run: swift build
+
+      - name: Run test suite
+        run: swift test
+
+      - name: Verify release build self-test
+        run: |
+          swift build -c release
+          .build/release/VidystReconstructed --self-test
+
+      - name: Run fast validators
+        run: |
+          bash scripts/validate-audio.sh
+          bash scripts/validate-capture.sh
+          bash scripts/validate-google-youtube.sh
+          bash scripts/validate-media-failures.sh
+
+      - name: Verify clean source export
+        run: |
+          bash scripts/export-source.sh build/ci-source-export-verify
+          rm -rf build/ci-source-export-verify

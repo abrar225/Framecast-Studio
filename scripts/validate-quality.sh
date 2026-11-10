@@ -5,13 +5,19 @@ output="${1:-$project_root/build/quality-validation}"
 mkdir -p "$output"
 temporary="$(mktemp -d -t framecast-quality)"
 trap 'rm -rf "$temporary"' EXIT
-sources=(MediaTypes VideoColor RecordingOutput RecordingStorage StreamPipe MediaPreferences MediaFailure AudioMixer AudioSignalMonitor CaptureDelivery ScreenCaptureSession MediaEngine)
-inputs=()
-for name in "${sources[@]}"; do inputs+=("$project_root/Sources/VidystStudio/$name.swift"); done
-xcrun swiftc -O -swift-version 5 -target "$(uname -m)-apple-macosx14.2" "${inputs[@]}" "$project_root/Tests/MediaQualityTests.swift" -o "$temporary/quality-test"
-/usr/bin/time -l "$temporary/quality-test" "$output"
 
-xcrun swiftc -O -swift-version 5 -target "$(uname -m)-apple-macosx14.2" "$project_root/Sources/VidystStudio/MediaTypes.swift" "$project_root/Sources/VidystStudio/MediaPreferences.swift" "$project_root/Sources/VidystStudio/MediaFailure.swift" "$project_root/Sources/VidystStudio/RecordingOutput.swift" "$project_root/Sources/VidystStudio/AudioMixer.swift" "$project_root/Tests/RecordingInterruptionTest.swift" -o "$temporary/interruption-test"
+cd "$project_root"
+FRAMECAST_QUALITY_DIR="$output" swift test --filter MediaQualityTests
+
+xcrun swiftc -O -swift-version 5 -target "$(uname -m)-apple-macosx14.2" \
+    "$project_root/Sources/VidystStudio/MediaTypes.swift" \
+    "$project_root/Sources/VidystStudio/MediaPreferences.swift" \
+    "$project_root/Sources/VidystStudio/MediaFailure.swift" \
+    "$project_root/Sources/VidystStudio/RecordingOutput.swift" \
+    "$project_root/Sources/VidystStudio/AudioMixer.swift" \
+    "$project_root/scripts/RecordingInterruptionTest.swift" \
+    -o "$temporary/interruption-test"
+
 ffmpeg=""
 for candidate in /opt/homebrew/bin/ffmpeg /usr/local/bin/ffmpeg; do
     if [ -x "$candidate" ]; then ffmpeg="$candidate"; break; fi
