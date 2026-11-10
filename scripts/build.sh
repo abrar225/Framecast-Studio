@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 swift build -c release
 app="$PWD/build/Framecast Studio.app"
+rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 swift scripts/make-icon.swift Resources/Framecast.iconset
 iconutil -c icns Resources/Framecast.iconset -o "$app/Contents/Resources/Framecast.icns"
@@ -21,8 +22,8 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>local.vidyst.reconstructed</string>
 <key>CFBundleName</key><string>Framecast Studio</string>
 <key>CFBundleDisplayName</key><string>Framecast Studio</string>
-<key>CFBundleShortVersionString</key><string>1.4.2</string>
-<key>CFBundleVersion</key><string>142</string>
+<key>CFBundleShortVersionString</key><string>2.0.0</string>
+<key>CFBundleVersion</key><string>200</string>
 <key>CFBundleIconFile</key><string>Framecast</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>14.2</string>
@@ -46,3 +47,10 @@ if [ -z "$signing_identity" ]; then
 fi
 codesign --force --sign "$signing_identity" "$app"
 printf 'Built: %s\n' "$app"
+if [ "${1:-}" = "--install" ]; then
+  install_target="/Applications/Framecast Studio.app"
+  rm -rf "$install_target"
+  ditto "$app" "$install_target"
+  touch "$install_target"
+  printf 'Installed to: %s\n' "$install_target"
+fi

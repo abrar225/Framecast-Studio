@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import CryptoKit
+import AppKit
 
 /// Independent local control bridge. It never reads Vidyst's discovery files or tokens.
 @MainActor final class RemoteServer {
@@ -147,11 +148,25 @@ import CryptoKit
         switch (String(parts[0]), components.path) {
         case ("GET", "/"): response(peer, body: dashboard, contentType: "text/html; charset=utf-8")
         case ("GET", "/state"): responseJSON(peer, state())
+        case ("GET", "/snapshot.jpg"), ("GET", "/preview.jpg"):
+            if let image = model?.engine.preview ?? model?.engine.secondaryPreview,
+               let tiff = image.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.6]) {
+                responseBinary(peer, data: jpeg, contentType: "image/jpeg")
+            } else {
+                response(peer, status: "503 Service Unavailable", body: "No preview frame available")
+            }
         case ("POST", "/action"):
             guard let request = try? JSONSerialization.jsonObject(with: body) as? [String: Any], let action = request["action"] as? String else { response(peer, status: "400 Bad Request", body: "JSON action required"); return }
             responseJSON(peer, command(action, args: request["args"] as? [String: Any] ?? [:]))
         default: response(peer, status: "404 Not Found", body: "Not found")
         }
+    }
+    private func responseBinary(_ peer: Peer, status: String = "200 OK", data: Data, contentType: String) {
+        var result = Data("HTTP/1.1 \(status)\r\nContent-Type: \(contentType)\r\nContent-Length: \(data.count)\r\nConnection: close\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nAccess-Control-Allow-Origin: *\r\n\r\n".utf8)
+        result.append(data)
+        peer.connection.send(content: result, completion: .contentProcessed { [weak self, weak peer] _ in Task { @MainActor in if let self, let peer { self.close(peer) } } })
     }
     private func response(_ peer: Peer, status: String = "200 OK", body: String, contentType: String = "text/plain; charset=utf-8") {
         let data = Data(body.utf8)
@@ -238,7 +253,8 @@ import CryptoKit
     }
     private func state() -> [String:Any] {
         guard let model else { return [:] }
-        return ["application":"Vidyst Reconstructed", "layout":model.selectedLayout,
+        let enabledCount = model.project.destinations.filter(\.enabled).count
+        return ["application":"Framecast Studio", "layout":model.selectedLayout,
                 "canvasMode":model.canvasMode, "editingCanvas":model.vertical ? "vertical":"horizontal",
                 "layouts":model.project.scenes.map { scene in
                     let sources=model.vertical ? (scene.verticalSources ?? scene.sources):scene.sources
@@ -246,10 +262,37 @@ import CryptoKit
                             "horizontalOnAir":scene.id == model.project.selectedSceneID,"verticalOnAir":scene.id == model.project.selectedVerticalSceneID,
                             "layers":sources.map { ["key":$0.id.uuidString,"name":$0.name,"shown":$0.visible] as [String:Any] }] as [String:Any]
                 },
-                "templates":StudioModel.layouts, "stream":["phase":model.engine.streaming ? "starting":"idle","encoderProcessRunning":model.engine.streaming,"deliveryVerified":false,"errorMessage":NSNull()],
-                "recording":["isOn":model.engine.recording,"isPaused":model.engine.recordingPaused],
-                "audio":[["key":"microphone","name":"Microphone","muted":model.project.microphoneMuted,"gain":model.engine.microphoneGain]],
-                "guests":["slots":[],"knockingCount":0], "limitations":["Loopback only; no iOS discovery or LAN control", "No guest control, audio faders or provider chat", "Original Stream Deck plugin requires adapted discovery configuration"]]
+                "templates":StudioModel.layouts,
+                "stream":[
+                    "phase":model.engine.streaming ? "streaming":"idle",
+                    "encoderProcessRunning":model.engine.streaming,
+                    "destinationsCount":enabledCount,
+                    "activeOutputs":model.engine.activeStreamOutputs.count,
+                    "deliveryVerified":model.engine.streaming,
+                    "errorMessage":model.engine.errorMessage ?? ""
+                ],
+                "recording":[
+                    "isOn":model.engine.recording,
+                    "isPaused":model.engine.recordingPaused,
+                    "isFinalizing":model.engine.isFinalizingRecording,
+                    "elapsed":model.engine.elapsed
+                ],
+                "lowerThird":[
+                    "text":model.project.lowerThird,
+                    "visible":model.project.lowerThirdVisible
+                ],
+                "audio":[
+                    ["key":"microphone","name":"Microphone","muted":model.project.microphoneMuted,"gain":model.engine.microphoneGain],
+                    ["key":"desktop","name":"Desktop Audio","muted":!(model.project.captureSystemAudio ?? false),"gain":model.engine.capturedAudioGain]
+                ],
+                "destinations":model.project.destinations.map { [
+                    "id": $0.id.uuidString,
+                    "name": $0.name,
+                    "enabled": $0.enabled,
+                    "vertical": $0.vertical
+                ] },
+                "guests":["slots":[],"knockingCount":0],
+                "limitations":["Loopback only; private token required"]]
     }
     private func command(_ action: String, args: [String:Any]) -> [String:Any] {
         guard let model else { return ["ok":false,"code":"offline"] }
@@ -262,6 +305,15 @@ import CryptoKit
             model.selectScene(model.project.scenes[(model.sceneIndex+delta+count)%count].id)
         case "template.pick":
             guard let name = args["name"] as? String, StudioModel.layouts.contains(name) else { return ["ok":false,"code":"notFound"] }; model.applyLayout(name)
+        case "canvas.setMode":
+            guard let mode = args["mode"] as? String, ["horizontal", "vertical", "both"].contains(mode) else { return ["ok":false,"code":"invalidArgument"] }
+            model.canvasMode = mode
+            if mode != "both" { model.vertical = mode == "vertical" }
+            model.refreshComposition()
+        case "elements.toggleLowerThird":
+            model.project.lowerThirdVisible.toggle()
+            model.refreshComposition()
+            model.save()
         case "layer.toggle":
             let canvas=args["canvas"] ?? (model.vertical ? "vertical":"horizontal")
             guard let canvas=canvas as? String, ["horizontal","vertical"].contains(canvas) else{return ["ok":false,"code":"invalidArgument","message":"canvas must be horizontal or vertical"]}
@@ -269,11 +321,33 @@ import CryptoKit
                   let sourceRaw=args["layerKey"] as? String, let sourceID=UUID(uuidString:sourceRaw),
                   model.toggleSourceVisibility(sceneID:sceneID,sourceID:sourceID,onVerticalCanvas:canvas == "vertical") else{return ["ok":false,"code":"notFound"]}
         case "audio.mute":
-            guard args["key"] as? String == "microphone" else { return failure("Only the microphone mute is available") }
-            model.project.microphoneMuted.toggle(); model.engine.microphoneEnabled = !model.project.microphoneMuted; model.save()
+            let key = args["key"] as? String ?? "microphone"
+            if key == "microphone" {
+                model.project.microphoneMuted.toggle()
+                model.engine.microphoneEnabled = !model.project.microphoneMuted
+                model.save()
+            } else if key == "desktop" {
+                let current = model.project.captureSystemAudio ?? false
+                model.project.captureSystemAudio = !current
+                model.engine.capturedAudioEnabled = !current
+                model.save()
+            } else {
+                return failure("Supported audio keys: microphone, desktop")
+            }
         case "audio.setGain":
-            guard args["key"] as? String == "microphone", let gain = args["value"] as? Double, gain.isFinite, (0...4).contains(gain) else { return ["ok":false,"code":"invalidArgument"] }
-            model.project.microphoneVolume = gain; model.engine.microphoneGain = gain; model.save()
+            let key = args["key"] as? String ?? "microphone"
+            guard let gain = args["value"] as? Double, gain.isFinite, (0...4).contains(gain) else { return ["ok":false,"code":"invalidArgument"] }
+            if key == "microphone" {
+                model.project.microphoneVolume = gain
+                model.engine.microphoneGain = gain
+                model.save()
+            } else if key == "desktop" {
+                model.project.capturedAudioVolume = gain
+                model.engine.capturedAudioGain = gain
+                model.save()
+            } else {
+                return failure("Supported audio keys: microphone, desktop")
+            }
         case "record.toggle":
             guard !model.engine.isFinalizingRecording else { return ["ok":false,"code":"blocked","message":"Recording is still finalizing"] }
             let wasRecording = model.engine.recording; model.toggleRecording()
@@ -283,7 +357,7 @@ import CryptoKit
             model.toggleRecordingPause()
         case "stream.start":
             guard !model.engine.streaming else { return ["ok":true,"code":"ok"] }
-            guard model.project.destinations.filter({$0.enabled}).count == 1 else { return ["ok":false,"code":"blocked","message":"Configure exactly one enabled destination in the studio"] }
+            guard !model.project.destinations.filter({$0.enabled}).isEmpty else { return ["ok":false,"code":"blocked","message":"Configure at least one enabled destination in the studio"] }
             model.toggleStreaming(); return ["ok":true,"code":"requested","message":"Stream start requested; check the studio for encoder or connection errors"]
         case "stream.stop": if model.engine.streaming { model.toggleStreaming() }
         default: return failure("This command is not implemented in the independent reconstruction")
@@ -291,11 +365,222 @@ import CryptoKit
         return ["ok":true,"code":"ok"]
     }
     private var dashboard: String { #"""
-<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Studio control</title><style>body{background:#181615;color:#eee6de;font:16px system-ui;max-width:720px;margin:40px auto;padding:20px}button{padding:14px;margin:6px;border:1px solid #554b43;border-radius:9px;background:#302a25;color:inherit;cursor:pointer}h1{font-size:26px}.muted{color:#b3a69a}#status{padding:18px;background:#24201d;border-radius:12px}button.active{background:#785c32}</style></head><body><h1>Framecast Studio · Control</h1><p class="muted">Private, loopback control. This is an independent dashboard; iPhone/LAN control and guest management are unavailable.</p><p id="status">Connecting…</p><button onclick="act('record.toggle')">Record / Stop</button><button onclick="act('audio.mute',{key:'microphone'})">Mute / Unmute mic</button><button onclick="act('stream.start')">Start stream</button><button onclick="act('stream.stop')">End stream</button><p>Mic gain <input aria-label="Microphone gain" type="range" min="0" max="4" step="0.05" value="1" onchange="act('audio.setGain',{key:'microphone',value:Number(this.value)})"></p><h2>Scenes</h2><div id="scenes"></div><h2>Layouts</h2><div id="templates"></div><p id="notice" role="status"></p><script>
-const token=new URLSearchParams(location.search).get('token');const headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'};
-async function act(action,args={}){try{const r=await fetch('/action',{method:'POST',headers,body:JSON.stringify({action,args})});const value=await r.json();document.querySelector('#notice').textContent=value.message||value.code;await update()}catch(e){document.querySelector('#notice').textContent='Control connection unavailable'}}
-function buttons(id,list,action,arg){const root=document.getElementById(id);root.replaceChildren();for(const item of list){const b=document.createElement('button');b.textContent=typeof item==='string'?item:item.name;if(item.onAir)b.className='active';b.onclick=()=>act(action,{[arg]:typeof item==='string'?item:item.id});root.appendChild(b)}}
-async function update(){try{const r=await fetch('/state',{headers});if(!r.ok)throw Error();const s=await r.json();document.querySelector('#status').textContent=(s.recording.isOn?'● Recording':'Recording stopped')+' · Stream '+s.stream.phase+' · '+s.layout+' · Mic '+(s.audio[0].muted?'muted':'on');buttons('scenes',s.layouts,'layout.pick','id');buttons('templates',s.templates,'template.pick','name')}catch(e){document.querySelector('#status').textContent='Disconnected. Open the current private URL from the studio.'}}update();setInterval(update,1500);
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Framecast Studio Companion</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { background: #141310; color: #EEECE7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+.deck { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 14px; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #1C1A16; border: 1px solid #2B2822; border-radius: 12px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.brand span { color: #F5C849; }
+.pill { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; }
+.pill--idle { background: #2A2721; color: #9C9588; }
+.pill--rec { background: #FF3B30; color: white; animation: pulse 1.5s infinite; }
+.pill--live { background: #34C759; color: black; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+.preview-card { position: relative; width: 100%; background: #000; border: 1px solid #2B2822; border-radius: 12px; overflow: hidden; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
+.preview-img { width: 100%; height: 100%; object-fit: contain; }
+.preview-overlay { position: absolute; bottom: 8px; left: 8px; display: flex; gap: 6px; }
+
+.section-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #9C9588; text-transform: uppercase; margin: 6px 0 2px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.grid-4 { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+
+button { background: #22201B; border: 1px solid #332F27; color: #EEECE7; border-radius: 10px; padding: 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+button:active { transform: scale(0.97); }
+button.btn-primary { background: #F5C849; color: #141310; border-color: #F5C849; }
+button.btn-danger { background: #FF3B30; color: white; border-color: #FF3B30; }
+button.btn-active { background: #38342B; border-color: #F5C849; color: #F5C849; }
+
+.card { background: #1C1A16; border: 1px solid #2B2822; border-radius: 12px; padding: 14px; }
+.slider-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+input[type=range] { flex: 1; accent-color: #F5C849; }
+.footer { font-size: 11px; color: #6E685D; text-align: center; margin-top: 10px; }
+#notice { font-size: 12px; color: #F5C849; min-height: 18px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="deck">
+  <div class="header">
+    <div class="brand"><span>FRAMECAST</span> STUDIO</div>
+    <div id="statusPill" class="pill pill--idle">STANDBY</div>
+  </div>
+
+  <div class="preview-card">
+    <img id="previewImg" class="preview-img" alt="Live Preview" src="" />
+    <div class="preview-overlay">
+      <span id="canvasBadge" class="pill pill--idle">16:9</span>
+      <span id="recTimeBadge" class="pill pill--idle" style="display:none">00:00</span>
+    </div>
+  </div>
+
+  <div id="notice"></div>
+
+  <div class="grid-2">
+    <button id="btnRec" onclick="act('record.toggle')">● Record</button>
+    <button id="btnStream" onclick="toggleStream()">Go Live</button>
+  </div>
+
+  <div class="grid-3">
+    <button onclick="act('record.pause')">⏸ Pause Take</button>
+    <button onclick="act('elements.toggleLowerThird')">Lower Third</button>
+    <button onclick="cycleCanvas()">Aspect</button>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Audio Levels</div>
+    <div class="slider-row">
+      <button id="btnMicMute" style="padding:6px 12px;font-size:11px" onclick="act('audio.mute',{key:'microphone'})">Mic</button>
+      <input type="range" min="0" max="4" step="0.05" id="micSlider" oninput="act('audio.setGain',{key:'microphone',value:Number(this.value)})">
+    </div>
+    <div class="slider-row">
+      <button id="btnDeskMute" style="padding:6px 12px;font-size:11px" onclick="act('audio.mute',{key:'desktop'})">Desktop</button>
+      <input type="range" min="0" max="4" step="0.05" id="deskSlider" oninput="act('audio.setGain',{key:'desktop',value:Number(this.value)})">
+    </div>
+  </div>
+
+  <div class="section-title">Scenes</div>
+  <div id="scenes" class="grid-4"></div>
+
+  <div class="section-title">Layout Templates</div>
+  <div id="templates" class="grid-4"></div>
+
+  <div class="footer">Encrypted local session · Framecast Studio Companion</div>
+</div>
+
+<script>
+const token = new URLSearchParams(location.search).get('token') || '';
+const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+let currentState = null;
+
+async function act(action, args = {}) {
+  try {
+    const r = await fetch('/action', { method: 'POST', headers, body: JSON.stringify({ action, args }) });
+    const res = await r.json();
+    if (res.message) showNotice(res.message);
+    await updateState();
+  } catch(e) {
+    showNotice('Control connection unavailable');
+  }
+}
+
+function showNotice(msg) {
+  const n = document.getElementById('notice');
+  n.textContent = msg;
+  setTimeout(() => { if (n.textContent === msg) n.textContent = ''; }, 3000);
+}
+
+function toggleStream() {
+  if (currentState && currentState.stream && currentState.stream.encoderProcessRunning) {
+    act('stream.stop');
+  } else {
+    act('stream.start');
+  }
+}
+
+function cycleCanvas() {
+  if (!currentState) return;
+  const modes = ['horizontal', 'vertical', 'both'];
+  const next = modes[(modes.indexOf(currentState.canvasMode) + 1) % modes.length];
+  act('canvas.setMode', { mode: next });
+}
+
+function refreshSnapshot() {
+  const img = document.getElementById('previewImg');
+  img.src = '/snapshot.jpg?token=' + encodeURIComponent(token) + '&_t=' + Date.now();
+}
+
+async function updateState() {
+  try {
+    const r = await fetch('/state', { headers });
+    if (!r.ok) throw Error();
+    const s = await r.json();
+    currentState = s;
+
+    const pill = document.getElementById('statusPill');
+    const recBadge = document.getElementById('recTimeBadge');
+    const btnRec = document.getElementById('btnRec');
+    const btnStream = document.getElementById('btnStream');
+
+    if (s.recording.isOn) {
+      pill.className = s.recording.isPaused ? 'pill pill--idle' : 'pill pill--rec';
+      pill.textContent = s.recording.isPaused ? 'REC PAUSED' : 'RECORDING';
+      btnRec.className = 'btn-danger';
+      btnRec.textContent = '■ Stop (' + Math.floor(s.recording.elapsed || 0) + 's)';
+      recBadge.style.display = 'inline-block';
+      recBadge.textContent = Math.floor(s.recording.elapsed || 0) + 's';
+    } else {
+      btnRec.className = '';
+      btnRec.textContent = '● Record';
+      recBadge.style.display = 'none';
+      if (s.stream.encoderProcessRunning) {
+        pill.className = 'pill pill--live';
+        pill.textContent = 'LIVE (' + (s.stream.activeOutputs || 1) + ')';
+      } else {
+        pill.className = 'pill pill--idle';
+        pill.textContent = 'STANDBY';
+      }
+    }
+
+    if (s.stream.encoderProcessRunning) {
+      btnStream.className = 'btn-danger';
+      btnStream.textContent = 'End Stream (' + (s.stream.activeOutputs || 1) + ')';
+    } else {
+      btnStream.className = (s.destinations && s.destinations.some(d => d.enabled)) ? 'btn-primary' : '';
+      btnStream.textContent = 'Go Live';
+    }
+
+    document.getElementById('canvasBadge').textContent = s.canvasMode.toUpperCase();
+
+    // Audio
+    const mic = s.audio.find(a => a.key === 'microphone');
+    if (mic) {
+      document.getElementById('btnMicMute').className = mic.muted ? 'btn-danger' : '';
+      document.getElementById('micSlider').value = mic.gain;
+    }
+    const desk = s.audio.find(a => a.key === 'desktop');
+    if (desk) {
+      document.getElementById('btnDeskMute').className = desk.muted ? 'btn-danger' : '';
+      document.getElementById('deskSlider').value = desk.gain;
+    }
+
+    // Scenes
+    const sceneDiv = document.getElementById('scenes');
+    sceneDiv.replaceChildren();
+    for (const sc of s.layouts) {
+      const b = document.createElement('button');
+      b.textContent = sc.name;
+      if (sc.onAir) b.className = 'btn-active';
+      b.onclick = () => act('layout.pick', { id: sc.id });
+      sceneDiv.appendChild(b);
+    }
+
+    // Templates
+    const tDiv = document.getElementById('templates');
+    tDiv.replaceChildren();
+    for (const name of s.templates) {
+      const b = document.createElement('button');
+      b.textContent = name;
+      if (name === s.layout) b.className = 'btn-active';
+      b.onclick = () => act('template.pick', { name });
+      tDiv.appendChild(b);
+    }
+  } catch(e) {}
+}
+
+updateState();
+setInterval(updateState, 1500);
+refreshSnapshot();
+setInterval(refreshSnapshot, 1500);
+</script>
+</body>
+</html>
 """# }
 }
